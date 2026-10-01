@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Drone Ops MVP</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <style>
 :root{--bg:#0f1419;--card:#1a222b;--tx:#e8edf2;--mu:#8a98a6;--ok:#3ddc97;--warn:#ffb020;--bad:#ff5c5c;--ac:#4aa8ff}
 *{box-sizing:border-box}
@@ -31,6 +32,14 @@ svg{width:100%;max-width:420px;display:block;margin:0 auto}
 .tiles{display:flex;gap:10px}.tile{flex:1;background:#0f1419;border-radius:10px;padding:10px}
 select{background:#0f1419;color:var(--tx);border:1px solid #2b3745;border-radius:8px;padding:8px;font-size:16px}
 .aglbox{background:#0f1419;border-radius:10px;padding:10px;margin:10px 0}.aglrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:6px 0}
+#map{height:360px;border-radius:10px;overflow:hidden;background:#0f1419}
+.leaflet-container{font:inherit}.leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.95) contrast(.9)}
+.pl{background:none;border:0;text-align:center;color:#fff;font-size:10px;text-shadow:0 0 3px #000,0 0 3px #000;line-height:1}
+.pl svg{display:block;margin:0 auto}.pl.sel svg{filter:drop-shadow(0 0 5px #fff)}
+.aci{background:#0f1419;border-radius:10px;padding:10px;margin-top:8px;font-size:14px}
+.aci .g2{display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;margin-top:6px}
+.aci .em{background:var(--bad);color:#fff;border-radius:8px;padding:6px 8px;font-weight:700;margin:6px 0}
+.acrow{display:block;width:100%;text-align:left;margin-top:6px;font-size:14px;font-weight:400;padding:10px}.acrow.on{outline:2px solid var(--ac)}
 </style>
 </head>
 <body>
@@ -89,9 +98,13 @@ select{background:#0f1419;color:var(--tx);border:1px solid #2b3745;border-radius
 
 <div class="card">
   <h2>ADS-B (5 nm)</h2>
-  <svg id="scope" viewBox="-110 -110 220 220"></svg>
+  <div id="map"></div>
+  <svg id="scope" viewBox="-110 -110 220 220" style="display:none"></svg>
+  <button class="g" id="recbtn" style="margin-top:8px;padding:8px 12px;font-size:14px">Recenter on me</button>
+  <div id="acinfo" class="aci mu">Tap an aircraft on the map or in the list for details.</div>
   <div id="acsum" style="margin-top:8px;font-weight:600">–</div>
-  <div id="aclist" class="mu"></div>
+  <div id="aclist"></div>
+  <div class="mu" style="font-size:12px;margin-top:6px">Aircraft altitudes are barometric (above sea level), not above ground. Compare with your site elevation. Red = below 1,500 ft.</div>
   <div class="mu" id="aage" style="margin-top:6px">No data yet</div>
   <button class="g" id="pxbtn" style="margin-top:8px;padding:8px 12px;font-size:14px">Set ADS-B proxy URL</button>
 </div>
@@ -109,6 +122,7 @@ select{background:#0f1419;color:var(--tx);border:1px solid #2b3745;border-radius
   </div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
 const $=id=>document.getElementById(id);
 let lat=-36.85,lon=174.76,have=false;
@@ -129,7 +143,7 @@ function startGPS(){
     const first=!have;lat=p.coords.latitude;lon=p.coords.longitude;have=true;gpsT=Date.now();
     $("pos").textContent="GPS: "+lat.toFixed(5)+", "+lon.toFixed(5)+" (±"+Math.round(p.coords.accuracy)+" m)"+
       (p.coords.altitude!=null?" · alt "+Math.round(p.coords.altitude)+" m":"");
-    if(first){weather();adsb()}
+    updateUser();if(first){weather();adsb()}
   },e=>{
     const m={1:"Location permission denied. Enable location for this browser in phone settings, then tap Retry.",
       2:"GPS position unavailable. Move to open sky and tap Retry.",3:"GPS timed out. Tap Retry."}[e.code]||"GPS error.";
@@ -139,7 +153,7 @@ function startGPS(){
 $("gpsbtn").onclick=startGPS;
 function setLoc(la,lo,label){
   if(gpsId!==null){navigator.geolocation.clearWatch(gpsId);gpsId=null}
-  lat=la;lon=lo;have=true;wT=0;aT=0;wErr="";aErr="";
+  lat=la;lon=lo;have=true;recenter=true;wT=0;aT=0;wErr="";aErr="";
   $("pos").textContent=label+": "+lat.toFixed(5)+", "+lon.toFixed(5)+" (GPS off – tap Retry GPS to resume)";
   weather();adsb();
 }
@@ -219,6 +233,71 @@ async function weather(){
   }catch(e){wErr=e.message||"request blocked (offline or page sandboxed)"}
 }
 
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const NMI=1852;let map=null,umark=null,ring=null,mk={},acs={},selHex=null,recenter=true;
+const dist=(a,b,c,d)=>{const R=Math.PI/180,x=(d-b)*R*Math.cos((a+c)/2*R),y=(c-a)*R;return Math.hypot(x,y)*3440.065};
+const brg=(a,b,c,d)=>{const R=Math.PI/180,y=Math.sin((d-b)*R)*Math.cos(c*R),x=Math.cos(a*R)*Math.sin(c*R)-Math.sin(a*R)*Math.cos(c*R)*Math.cos((d-b)*R);return (Math.atan2(y,x)/R+360)%360};
+function initMap(){
+  if(map)return;
+  if(typeof L==="undefined"){$("map").style.display="none";$("scope").style.display="block";return}
+  map=L.map("map").setView([lat,lon],12);
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:18,attribution:"© OpenStreetMap"}).addTo(map);
+  umark=L.circleMarker([lat,lon],{radius:8,color:"#fff",weight:2,fillColor:"#4aa8ff",fillOpacity:1}).addTo(map);
+  ring=L.circle([lat,lon],{radius:5*NMI,color:"#4aa8ff",weight:1,fill:false,dashArray:"4 4"}).addTo(map);
+  map.on("dragstart",()=>{recenter=false});
+}
+function updateUser(){
+  if(!map)return;
+  umark.setLatLng([lat,lon]);ring.setLatLng([lat,lon]);
+  if(recenter)map.setView([lat,lon],map.getZoom());
+}
+function icon(a,sel){
+  const s=sel?34:26;
+  return L.divIcon({className:"pl"+(sel?" sel":""),iconSize:[s,s+10],iconAnchor:[s/2,s/2],
+    html:`<svg width="${s}" height="${s}" viewBox="-14 -14 28 28" style="transform:rotate(${a.trk||0}deg)"><path d="M0-12L2-4L11 1V3L2 1L1.5 7L5 9V10.5L0 9.5L-5 10.5V9L-1.5 7L-2 1L-11 3V1L-2-4Z" fill="${a.col}" stroke="#000" stroke-width="1"/></svg><div>${esc(a.name)}</div>`});
+}
+function select(hex){
+  selHex=(hex===selHex)?null:hex;
+  if(selHex&&map&&acs[selHex]){recenter=false;map.panTo([acs[selHex].lat,acs[selHex].lon])}
+  renderMap(Object.values(acs));
+}
+function showInfo(){
+  const el=$("acinfo"),a=acs[selHex];
+  if(!selHex){el.className="aci mu";el.textContent="Tap an aircraft on the map or in the list for details.";return}
+  if(!a){el.className="aci mu";el.textContent="Selected aircraft is no longer being received.";return}
+  const d=dist(lat,lon,a.lat,a.lon),b=brg(lat,lon,a.lat,a.lon);
+  const F=(l,v)=>v==null||v===""?"":`<div><div class="mu">${l}</div><b>${esc(v)}</b></div>`;
+  const alt=a.gnd?"On ground":a.alt==null?"unknown":a.alt+" ft ("+Math.round(a.alt*0.3048)+" m)";
+  const vr=a.vr==null?null:(a.vr>100?"▲ ":a.vr<-100?"▼ ":"– ")+Math.abs(Math.round(a.vr))+" ft/min";
+  const em={"7700":"EMERGENCY (squawk 7700)","7600":"RADIO FAILURE (squawk 7600)","7500":"HIJACK CODE (squawk 7500)"}[a.sq];
+  el.className="aci";
+  el.innerHTML=`<div class="big2">${esc(a.name)}</div>`+(em?`<div class="em">${em}</div>`:"")+`<div class="g2">`+
+    F("Altitude (baro, AMSL)",alt)+F("GPS altitude",a.agm!=null&&a.agm!=="ground"?a.agm+" ft":null)+
+    F("Vertical rate",vr)+F("Ground speed",a.gs!=null?Math.round(a.gs)+" kt ("+Math.round(a.gs*1.852)+" km/h)":null)+
+    F("Track",a.trk!=null?Math.round(a.trk)+"°":null)+F("Distance from you",d.toFixed(1)+" nm "+CARD(b))+
+    F("Type",a.type)+F("Registration",a.reg)+F("Squawk",a.sq)+F("Last heard",a.seen!=null?Math.round(a.seen)+" s ago":null)+`</div>`;
+}
+function renderList(list){
+  const box=$("aclist");box.innerHTML="";
+  list.map(a=>({a,d:dist(lat,lon,a.lat,a.lon),b:brg(lat,lon,a.lat,a.lon)})).sort((x,y)=>x.d-y.d).forEach(({a,d,b})=>{
+    const btn=document.createElement("button");btn.className="g acrow"+(a.hex===selHex?" on":"");
+    btn.textContent=a.name+" · "+(a.gnd?"ground":a.alt==null?"? ft":a.alt+" ft")+" · "+d.toFixed(1)+" nm "+CARD(b);
+    btn.onclick=()=>select(a.hex);box.appendChild(btn);
+  });
+}
+function renderMap(list){
+  acs={};list.forEach(a=>acs[a.hex]=a);
+  if(map){
+    Object.keys(mk).forEach(k=>{if(!acs[k]){map.removeLayer(mk[k]);delete mk[k]}});
+    list.forEach(a=>{
+      const sel=a.hex===selHex,key=Math.round(a.trk||0)+"|"+a.col+"|"+sel+"|"+a.name;
+      if(mk[a.hex]){mk[a.hex].setLatLng([a.lat,a.lon]);if(mk[a.hex]._k!==key){mk[a.hex].setIcon(icon(a,sel));mk[a.hex]._k=key}}
+      else{const m=L.marker([a.lat,a.lon],{icon:icon(a,sel),keyboard:false}).on("click",()=>select(a.hex)).addTo(map);m._k=key;mk[a.hex]=m}
+    });
+  }else scope(list);
+  renderList(list);showInfo();
+}
+$("recbtn").onclick=()=>{recenter=true;if(map)map.setView([lat,lon],12)};
 function scope(list){
   let s='';
   [30,60,90].forEach((r,i)=>s+=`<circle r="${r}" fill="none" stroke="#2b3745"/><text x="${r-2}" y="-2" fill="#8a98a6" font-size="7" text-anchor="end">${(i+1)*5/3|0?((i+1)*5/3).toFixed(1):''}nm</text>`);
@@ -228,7 +307,7 @@ function scope(list){
     const dx=(a.lon-lon)*Math.cos(lat*Math.PI/180)*60,dy=(a.lat-lat)*60; // nm
     const x=dx*18,y=-dy*18;
     s+=`<g transform="translate(${x},${y}) rotate(${a.trk||0})"><path d="M0-7L4 5L0 3L-4 5Z" fill="${a.col}"/></g>`+
-       `<text x="7" y="3" font-size="7" fill="${a.col}">${a.name}</text>`;
+       `<text x="7" y="3" font-size="7" fill="${a.col}">${esc(a.name)}</text>`;
   });
   $("scope").innerHTML=s;
 }
@@ -247,14 +326,15 @@ async function adsb(){
       const res=await fetch(url,{signal:c.signal});clearTimeout(to);
       if(!res.ok){let m="HTTP "+res.status;try{const j=await res.json();if(j.details)m+=" ["+j.details.join("; ")+"]"}catch(e2){}throw new Error(m)}
       const d=await res.json();
-      const list=(d.ac||d.aircraft||[]).filter(a=>a.lat!=null).map(a=>{
-        const alt=a.alt_baro==="ground"?0:a.alt_baro;
-        return {lat:a.lat,lon:a.lon,trk:a.track,alt,gs:a.gs,name:(a.flight||a.r||a.hex||"?").trim(),
-          col:(alt!=null&&alt<1500)?"#ff5c5c":"#3ddc97"}});
-      scope(list);aT=Date.now();aErr="";aSrc=name+", "+(d.ac||d.aircraft||[]).length+" raw";
+      const list=(d.ac||d.aircraft||[]).filter(a=>a.lat!=null&&a.lon!=null).map(a=>{
+        const gnd=a.alt_baro==="ground",alt=gnd?0:(typeof a.alt_baro==="number"?a.alt_baro:null);
+        return {hex:String(a.hex||(a.lat+","+a.lon)).toLowerCase(),lat:a.lat,lon:a.lon,trk:a.track,alt,gnd,agm:a.alt_geom,
+          vr:a.baro_rate!=null?a.baro_rate:a.geom_rate,gs:a.gs,sq:a.squawk,type:a.t,reg:a.r,seen:a.seen,
+          name:String(a.flight||a.r||a.hex||"?").trim(),
+          col:gnd?"#8a98a6":(alt!=null&&alt<1500)?"#ff5c5c":"#3ddc97"}});
+      initMap();updateUser();renderMap(list);aT=Date.now();aErr="";aSrc=name+", "+(d.ac||d.aircraft||[]).length+" raw";
       $("acsum").textContent=list.length?list.length+" aircraft seen":"No ADS-B seen (not the same as airspace clear)";
       $("acsum").style.color=list.length?"":"var(--warn)";
-      $("aclist").textContent=list.map(a=>a.name+" "+(a.alt??"?")+" ft").join(" · ");
       return;
     }catch(e){errs.push(name+": "+(e.name==="AbortError"?"timeout":e.message))}
   }
