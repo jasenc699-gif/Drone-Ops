@@ -40,6 +40,10 @@ select{background:#0f1419;color:var(--tx);border:1px solid #2b3745;border-radius
 .aci .g2{display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;margin-top:6px}
 .aci .em{background:var(--bad);color:#fff;border-radius:8px;padding:6px 8px;font-weight:700;margin:6px 0}
 .acrow{display:block;width:100%;text-align:left;margin-top:6px;font-size:14px;font-weight:400;padding:10px}.acrow.on{outline:2px solid var(--ac)}
+.me{background:none;border:0}
+.me .dot{position:absolute;left:5px;top:5px;width:14px;height:14px;border-radius:50%;background:#4aa8ff;border:2px solid #fff;box-shadow:0 0 4px rgba(0,0,0,.5)}
+.me .pulse{position:absolute;left:0;top:0;width:24px;height:24px;border-radius:50%;background:rgba(74,168,255,.55);animation:pu 1.8s ease-out infinite}
+@keyframes pu{0%{transform:scale(.5);opacity:.9}100%{transform:scale(2.8);opacity:0}}
 </style>
 </head>
 <body>
@@ -140,7 +144,7 @@ function startGPS(){
   if(gpsId!==null)navigator.geolocation.clearWatch(gpsId);
   $("pos").textContent="Waiting for GPS fix…";
   gpsId=navigator.geolocation.watchPosition(p=>{
-    const first=!have;lat=p.coords.latitude;lon=p.coords.longitude;have=true;gpsT=Date.now();
+    const first=!have;gpsAcc=p.coords.accuracy;lat=p.coords.latitude;lon=p.coords.longitude;have=true;gpsT=Date.now();
     $("pos").textContent="GPS: "+lat.toFixed(5)+", "+lon.toFixed(5)+" (±"+Math.round(p.coords.accuracy)+" m)"+
       (p.coords.altitude!=null?" · alt "+Math.round(p.coords.altitude)+" m":"");
     updateUser();if(first){weather();adsb()}
@@ -153,7 +157,7 @@ function startGPS(){
 $("gpsbtn").onclick=startGPS;
 function setLoc(la,lo,label){
   if(gpsId!==null){navigator.geolocation.clearWatch(gpsId);gpsId=null}
-  lat=la;lon=lo;have=true;recenter=true;wT=0;aT=0;wErr="";aErr="";
+  lat=la;lon=lo;have=true;recenter=true;gpsAcc=0;wT=0;aT=0;wErr="";aErr="";
   $("pos").textContent=label+": "+lat.toFixed(5)+", "+lon.toFixed(5)+" (GPS off – tap Retry GPS to resume)";
   weather();adsb();
 }
@@ -234,7 +238,7 @@ async function weather(){
 }
 
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const NMI=1852;let map=null,umark=null,ring=null,mk={},acs={},selHex=null,recenter=true;
+const NMI=1852;let map=null,umark=null,ring=null,mk={},acs={},selHex=null,recenter=true,accC=null,gpsAcc=0;
 const dist=(a,b,c,d)=>{const R=Math.PI/180,x=(d-b)*R*Math.cos((a+c)/2*R),y=(c-a)*R;return Math.hypot(x,y)*3440.065};
 const brg=(a,b,c,d)=>{const R=Math.PI/180,y=Math.sin((d-b)*R)*Math.cos(c*R),x=Math.cos(a*R)*Math.sin(c*R)-Math.sin(a*R)*Math.cos(c*R)*Math.cos((d-b)*R);return (Math.atan2(y,x)/R+360)%360};
 function initMap(){
@@ -242,13 +246,14 @@ function initMap(){
   if(typeof L==="undefined"){$("map").style.display="none";$("scope").style.display="block";return}
   map=L.map("map").setView([lat,lon],12);
   L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:18,attribution:"© OpenStreetMap"}).addTo(map);
-  umark=L.circleMarker([lat,lon],{radius:8,color:"#fff",weight:2,fillColor:"#4aa8ff",fillOpacity:1}).addTo(map);
+  accC=L.circle([lat,lon],{radius:0,stroke:false,fillColor:"#4aa8ff",fillOpacity:.12}).addTo(map);
+  umark=L.marker([lat,lon],{icon:L.divIcon({className:"me",html:'<div class="pulse"></div><div class="dot"></div>',iconSize:[24,24],iconAnchor:[12,12]}),interactive:false,keyboard:false,zIndexOffset:1000}).addTo(map);
   ring=L.circle([lat,lon],{radius:5*NMI,color:"#4aa8ff",weight:1,fill:false,dashArray:"4 4"}).addTo(map);
   map.on("dragstart",()=>{recenter=false});
 }
 function updateUser(){
   if(!map)return;
-  umark.setLatLng([lat,lon]);ring.setLatLng([lat,lon]);
+  umark.setLatLng([lat,lon]);ring.setLatLng([lat,lon]);accC.setLatLng([lat,lon]);accC.setRadius(gpsAcc||0);
   if(recenter)map.setView([lat,lon],map.getZoom());
 }
 function icon(a,sel){
