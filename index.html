@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Drone Ops MVP</title>
+<style>
+:root{--bg:#0f1419;--card:#1a222b;--tx:#e8edf2;--mu:#8a98a6;--ok:#3ddc97;--warn:#ffb020;--bad:#ff5c5c;--ac:#4aa8ff}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px system-ui,sans-serif;padding:env(safe-area-inset-top) 12px calc(env(safe-area-inset-bottom) + 12px)}
+h2{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--mu);margin:0 0 8px}
+.card{background:var(--card);border-radius:12px;padding:14px;margin:12px 0}
+.row{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.big{font-size:28px;font-weight:600}
+.mu{color:var(--mu);font-size:13px}
+.stale{color:var(--warn)}
+button{background:var(--ac);color:#06121f;border:0;border-radius:10px;padding:12px 16px;font-size:16px;font-weight:600}
+button.g{background:#2b3745;color:var(--tx)}
+input{background:#0f1419;color:var(--tx);border:1px solid #2b3745;border-radius:8px;padding:10px;width:80px;font-size:16px}
+svg{width:100%;max-width:420px;display:block;margin:0 auto}
+.due{background:var(--bad);animation:p 1s infinite}
+@keyframes p{50%{opacity:.6}}
+#disc{background:#2a2112;border:1px solid var(--warn);color:#ffd98a;font-size:13px}
+.chip{display:inline-block;padding:6px 12px;border-radius:99px;font-weight:700;font-size:14px;background:#2b3745;margin-bottom:10px}
+.chip.ok{background:#12382a;color:var(--ok)}.chip.warn{background:#3a2c0c;color:var(--warn)}.chip.bad{background:#40181a;color:var(--bad)}
+.wxmain{display:flex;align-items:center;gap:16px}.wxmain svg{width:120px;flex:none}
+.huge{font-size:46px;font-weight:700;line-height:1}.big2{font-size:22px;font-weight:600}
+.bars{margin-top:12px}.br{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:13px}
+.br span{width:56px;color:var(--mu)}.br b{width:34px;text-align:right}
+.tr{flex:1;height:10px;background:#0f1419;border-radius:6px;overflow:hidden}.tr i{display:block;height:100%;width:0;background:var(--ok);border-radius:6px;transition:width .4s}
+.tiles{display:flex;gap:10px}.tile{flex:1;background:#0f1419;border-radius:10px;padding:10px}
+select{background:#0f1419;color:var(--tx);border:1px solid #2b3745;border-radius:8px;padding:8px;font-size:16px}
+.aglbox{background:#0f1419;border-radius:10px;padding:10px;margin:10px 0}.aglrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:6px 0}
+</style>
+</head>
+<body>
+<div class="card" id="disc">Situational awareness aid only. Not a substitute for your exposition, airspace authorisation, or visual lookout. Many aircraft (ag, gliders, some helicopters) do not transmit ADS-B. Check CAA Part 101/102 for current rules.</div>
+
+<div class="card">
+  <h2>Position</h2>
+  <div id="pos" class="mu">Locating…</div>
+  <div class="row" style="margin-top:8px;flex-wrap:nowrap">
+    <input id="q" type="search" placeholder="Search address or place (NZ)" style="flex:1;width:auto;min-width:0">
+    <button id="qbtn" style="padding:10px 14px">Search</button>
+  </div>
+  <div id="qres" class="mu" style="margin-top:6px"></div>
+  <button class="g" id="gpsbtn" style="margin-top:8px;padding:8px 12px;font-size:14px">Retry GPS</button>
+  <button class="g" id="manbtn" style="margin-top:8px;padding:8px 12px;font-size:14px">Enter location</button>
+</div>
+
+<div class="card" id="wxcard">
+  <h2>Wind &amp; weather</h2>
+  <div id="verdict" class="chip">Waiting for data</div>
+  <div class="wxmain">
+    <svg id="compass" viewBox="-60 -60 120 120">
+      <circle r="50" fill="none" stroke="#2b3745" stroke-width="2"/>
+      <circle r="36" fill="none" stroke="#243040"/>
+      <text y="-40" font-size="9" fill="#8a98a6" text-anchor="middle">N</text>
+      <text x="43" y="3" font-size="9" fill="#8a98a6" text-anchor="middle">E</text>
+      <text y="48" font-size="9" fill="#8a98a6" text-anchor="middle">S</text>
+      <text x="-43" y="3" font-size="9" fill="#8a98a6" text-anchor="middle">W</text>
+      <g id="arrow"><path d="M0-30L9 12L0 6L-9 12Z" fill="#4aa8ff"/></g>
+    </svg>
+    <div>
+      <div><span class="huge" id="w10">–</span><span class="mu"> km/h</span></div>
+      <div class="mu">wind at 10 m, from <b id="d10">–</b></div>
+      <div style="margin-top:8px"><span class="big" id="gust">–</span><span class="mu"> km/h gusts</span></div>
+    </div>
+  </div>
+  <div class="bars">
+    <div class="br"><span>10 m</span><div class="tr"><i id="b10"></i></div><b id="v10">–</b></div>
+    <div class="br"><span>Gusts</span><div class="tr"><i id="bg"></i></div><b id="vg">–</b></div>
+    <div class="br"><span>120 m</span><div class="tr"><i id="b120"></i></div><b id="v120">–</b></div>
+    <div class="br"><span id="lblAgl">400 ft</span><div class="tr"><i id="bagl"></i></div><b id="vagl">–</b></div>
+  </div>
+  <div class="mu" style="margin:4px 0 10px">Bars show wind against your limit (right edge). 120 m wind is from <b id="d120">–</b>.</div>
+  <div class="tiles">
+    <div class="tile"><div class="mu">Rain</div><div class="big2" id="rain">–</div></div>
+    <div class="tile"><div class="mu">Temp</div><div class="big2" id="temp">–</div></div>
+  </div>
+  <div class="aglbox"><div class="mu">Wind at a height above ground (AGL)</div>
+    <div class="aglrow"><input id="agl" type="number" min="0" max="600" value="400" style="width:84px"><select id="aglu"><option value="ft">ft</option><option value="m">m</option></select>
+    <div><span class="big" id="aglv">–</span><span class="mu"> km/h from <b id="agld">–</b></span></div></div>
+    <div class="mu" style="font-size:12px">Estimated from model winds at 10, 80, 120 and 180 m. Heights above 180 m (about 590 ft) aren't available. Gusts shown are at 10 m; gusts higher up are usually stronger.</div></div>
+  <label class="mu" style="display:block;margin-top:10px">Your aircraft wind limit <input id="lim" type="number" min="5" max="100" value="30" style="width:64px;padding:6px"> km/h</label>
+  <div class="mu" style="font-size:12px">Indicative only. Use your aircraft's limits and your exposition.</div>
+  <div class="mu" id="wage" style="margin-top:6px">No data yet</div>
+</div>
+
+<div class="card">
+  <h2>ADS-B (5 nm)</h2>
+  <svg id="scope" viewBox="-110 -110 220 220"></svg>
+  <div id="acsum" style="margin-top:8px;font-weight:600">–</div>
+  <div id="aclist" class="mu"></div>
+  <div class="mu" id="aage" style="margin-top:6px">No data yet</div>
+  <button class="g" id="pxbtn" style="margin-top:8px;padding:8px 12px;font-size:14px">Set ADS-B proxy URL</button>
+</div>
+
+<div class="card" id="tcard">
+  <h2>Radio call timer</h2>
+  <div class="row" style="align-items:center">
+    <label>Every <input id="mins" type="number" min="1" value="10"> min</label>
+    <div class="big" id="cd">--:--</div>
+  </div>
+  <div class="row" style="margin-top:10px">
+    <button id="tstart">Start</button>
+    <button class="g" id="tack">Call made</button>
+    <button class="g" id="tstop">Stop</button>
+  </div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+let lat=-36.85,lon=174.76,have=false;
+const ago=t=>t?Math.round((Date.now()-t)/1000):null;
+let wT=0,aT=0,wErr="",aErr="",aSrc="";
+let proxy="";try{proxy=localStorage.getItem("proxy")||""}catch(e){}
+function agetxt(el,label,t,err){const s=ago(t);
+  if(err&&(s===null||s>15)){el.textContent=label+" ERROR: "+err+(s!==null?" (last good "+s+"s ago)":"");el.className="mu stale";return}
+  if(s===null){el.textContent=have?"Fetching…":"Waiting for location…";return}
+  el.textContent=label+" updated "+s+"s ago"+(s>60?" – STALE":"");el.className="mu"+(s>60?" stale":"")}
+
+let gpsId=null,gpsT=0;
+function startGPS(){
+  if(!navigator.geolocation){$("pos").textContent="GPS not supported on this device/browser.";return}
+  if(gpsId!==null)navigator.geolocation.clearWatch(gpsId);
+  $("pos").textContent="Waiting for GPS fix…";
+  gpsId=navigator.geolocation.watchPosition(p=>{
+    const first=!have;lat=p.coords.latitude;lon=p.coords.longitude;have=true;gpsT=Date.now();
+    $("pos").textContent="GPS: "+lat.toFixed(5)+", "+lon.toFixed(5)+" (±"+Math.round(p.coords.accuracy)+" m)"+
+      (p.coords.altitude!=null?" · alt "+Math.round(p.coords.altitude)+" m":"");
+    if(first){weather();adsb()}
+  },e=>{
+    const m={1:"Location permission denied. Enable location for this browser in phone settings, then tap Retry.",
+      2:"GPS position unavailable. Move to open sky and tap Retry.",3:"GPS timed out. Tap Retry."}[e.code]||"GPS error.";
+    $("pos").innerHTML=m+(location.protocol==="file:"?" <br>(Some browsers block GPS on local files – host the page over HTTPS.)":"");
+  },{enableHighAccuracy:true,maximumAge:5000,timeout:20000});
+}
+$("gpsbtn").onclick=startGPS;
+function setLoc(la,lo,label){
+  if(gpsId!==null){navigator.geolocation.clearWatch(gpsId);gpsId=null}
+  lat=la;lon=lo;have=true;wT=0;aT=0;wErr="";aErr="";
+  $("pos").textContent=label+": "+lat.toFixed(5)+", "+lon.toFixed(5)+" (GPS off – tap Retry GPS to resume)";
+  weather();adsb();
+}
+$("manbtn").onclick=()=>{
+  const v=prompt("Enter latitude, longitude (e.g. -36.85, 174.76)");if(!v)return;
+  const p=v.split(/[ ,]+/).map(Number);
+  if(p.length<2||p.some(isNaN)||Math.abs(p[0])>90||Math.abs(p[1])>180){alert("Couldn't read that. Use: -36.85, 174.76");return}
+  setLoc(p[0],p[1],"MANUAL");
+};
+async function search(){
+  const q=$("q").value.trim();if(!q)return;
+  const box=$("qres");box.textContent="Searching…";
+  let res=[];
+  try{const r=await (await fetch("https://nominatim.openstreetmap.org/search?format=jsonv2&countrycodes=nz&limit=5&q="+encodeURIComponent(q))).json();
+    res=r.map(x=>({n:x.display_name,la:+x.lat,lo:+x.lon}))}catch(e){}
+  if(!res.length)try{const r=await (await fetch("https://geocoding-api.open-meteo.com/v1/search?count=5&country_code=NZ&name="+encodeURIComponent(q))).json();
+    res=(r.results||[]).map(x=>({n:[x.name,x.admin1].filter(Boolean).join(", "),la:x.latitude,lo:x.longitude}))}catch(e){}
+  box.textContent="";
+  if(!res.length){box.textContent="No results (or search blocked). Try a suburb or town name.";return}
+  res.forEach(x=>{const b=document.createElement("button");b.className="g";b.textContent=x.n;
+    b.style.cssText="display:block;width:100%;text-align:left;margin-top:6px;font-size:14px;font-weight:400";
+    b.onclick=()=>{box.textContent="";setLoc(x.la,x.lo,"SEARCH");$("q").value=x.n.split(",").slice(0,2).join(",")};
+    box.appendChild(b)});
+}
+$("pxbtn").onclick=()=>{
+  const v=prompt("Paste your proxy URL (blank to clear)",proxy);if(v===null)return;
+  proxy=v.trim();try{localStorage.setItem("proxy",proxy)}catch(e){}
+  aT=0;aErr="";if(have)adsb();
+};
+$("qbtn").onclick=search;
+$("q").addEventListener("keydown",e=>{if(e.key==="Enter")search()});
+startGPS();
+
+const CARD=d=>["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"][Math.round(d/22.5)%16];
+let lim=30;try{lim=+localStorage.getItem("lim")||30}catch(e){}
+let aglV=400,aglU="ft";try{aglV=+localStorage.getItem("aglV")||400;aglU=localStorage.getItem("aglU")||"ft"}catch(e){}
+function windAt(o,m){
+  const R=Math.PI/180,P=[[10,o.w10,o.d10],[80,o.w80,o.d80],[120,o.w120,o.d120],[180,o.w180,o.d180]].filter(p=>p[1]!=null&&p[2]!=null);
+  let a=P[0],b=P[0],f=0;
+  if(m>=P[P.length-1][0]){a=b=P[P.length-1]}
+  else if(m>P[0][0]){for(let i=0;i<P.length-1;i++)if(m>=P[i][0]&&m<=P[i+1][0]){a=P[i];b=P[i+1];f=(m-a[0])/(b[0]-a[0]);break}}
+  const s=a[1]+(b[1]-a[1])*f,x=Math.sin(a[2]*R)*(1-f)+Math.sin(b[2]*R)*f,y=Math.cos(a[2]*R)*(1-f)+Math.cos(b[2]*R)*f;
+  return {s:s,d:(Math.atan2(x,y)/R+360)%360};
+}
+let lastWx=null;
+function renderWx(o){
+  lastWx=o;
+  const set=(i,v)=>{const el=$(i);el.textContent=v};
+  set("w10",Math.round(o.w10));set("gust",Math.round(o.gust));
+  set("d10",CARD(o.d10)+" ("+Math.round(o.d10)+"°)");set("d120",CARD(o.d120));
+  set("v10",Math.round(o.w10));set("vg",Math.round(o.gust));set("v120",Math.round(o.w120));
+  $("arrow").setAttribute("transform","rotate("+((o.d10+180)%360)+")");
+  const bar=(id,v)=>{const r=v/lim,e=$(id);e.style.width=Math.min(100,r*100)+"%";e.style.background=r>=1?"var(--bad)":r>=.8?"var(--warn)":"var(--ok)"};
+  bar("b10",o.w10);bar("bg",o.gust);bar("b120",o.w120);
+  set("rain",o.rain>0?o.rain.toFixed(1)+" mm":"None");set("temp",Math.round(o.temp)+" °C");
+  const mh=Math.max(0,aglU==="ft"?aglV*0.3048:aglV);let wagl=0;
+  $("lblAgl").textContent=aglV+" "+aglU;
+  if(mh>180){set("aglv","–");set("agld","above 180 m: no data");set("vagl","–");$("bagl").style.width="0"}
+  else{const w=windAt(o,mh);wagl=w.s;set("aglv",Math.round(w.s));set("agld",CARD(w.d)+" ("+Math.round(w.d)+"°)");set("vagl",Math.round(w.s));bar("bagl",w.s)}
+  const worst=Math.max(o.gust,o.w120,wagl)/lim,v=$("verdict");
+  if(worst>=1){v.textContent="OVER YOUR LIMIT";v.className="chip bad"}
+  else if(worst>=.8||o.rain>0){v.textContent=o.rain>0&&worst<.8?"RAIN – CHECK RATING":"MARGINAL";v.className="chip warn"}
+  else{v.textContent="WITHIN YOUR LIMIT";v.className="chip ok"}
+}
+$("agl").value=aglV;$("aglu").value=aglU;
+function aglChange(){aglV=Math.max(0,+$("agl").value||0);aglU=$("aglu").value;try{localStorage.setItem("aglV",aglV);localStorage.setItem("aglU",aglU)}catch(e){}if(lastWx)renderWx(lastWx)}
+$("agl").oninput=aglChange;$("aglu").onchange=aglChange;
+$("lim").value=lim;
+$("lim").onchange=()=>{lim=Math.max(5,+$("lim").value||30);try{localStorage.setItem("lim",lim)}catch(e){}if(lastWx)renderWx(lastWx)};
+async function weather(){
+  try{
+    const u="https://api.open-meteo.com/v1/forecast?latitude="+lat+"&longitude="+lon+
+    "&current=temperature_2m,precipitation,wind_speed_10m,wind_gusts_10m,wind_direction_10m,wind_speed_120m,wind_direction_120m,wind_speed_80m,wind_direction_80m,wind_speed_180m,wind_direction_180m&wind_speed_unit=kmh&timezone=auto";
+    const c=(await (await fetch(u)).json()).current;
+    renderWx({w10:c.wind_speed_10m,gust:c.wind_gusts_10m,w120:c.wind_speed_120m,d10:c.wind_direction_10m,d120:c.wind_direction_120m,w80:c.wind_speed_80m,d80:c.wind_direction_80m,w180:c.wind_speed_180m,d180:c.wind_direction_180m,rain:c.precipitation,temp:c.temperature_2m});
+    wT=Date.now();wErr="";
+  }catch(e){wErr=e.message||"request blocked (offline or page sandboxed)"}
+}
+
+function scope(list){
+  let s='';
+  [30,60,90].forEach((r,i)=>s+=`<circle r="${r}" fill="none" stroke="#2b3745"/><text x="${r-2}" y="-2" fill="#8a98a6" font-size="7" text-anchor="end">${(i+1)*5/3|0?((i+1)*5/3).toFixed(1):''}nm</text>`);
+  s+='<line x1="-100" x2="100" stroke="#2b3745"/><line y1="-100" y2="100" stroke="#2b3745"/><text y="-100" fill="#8a98a6" font-size="8" text-anchor="middle">N</text>';
+  s+='<circle r="4" fill="#4aa8ff"/>';
+  list.forEach(a=>{
+    const dx=(a.lon-lon)*Math.cos(lat*Math.PI/180)*60,dy=(a.lat-lat)*60; // nm
+    const x=dx*18,y=-dy*18;
+    s+=`<g transform="translate(${x},${y}) rotate(${a.trk||0})"><path d="M0-7L4 5L0 3L-4 5Z" fill="${a.col}"/></g>`+
+       `<text x="7" y="3" font-size="7" fill="${a.col}">${a.name}</text>`;
+  });
+  $("scope").innerHTML=s;
+}
+
+async function adsb(){
+  const urls=[["adsb.lol","https://api.adsb.lol/v2/lat/"+lat+"/lon/"+lon+"/dist/5"],
+    ["adsb.fi","https://opendata.adsb.fi/api/v2/lat/"+lat+"/lon/"+lon+"/dist/5"],
+    ["airplanes.live","https://api.airplanes.live/v2/point/"+lat+"/"+lon+"/5"],
+    ["adsb.lol(alt)","https://api.adsb.lol/v2/point/"+lat+"/"+lon+"/5"]];
+  const errs=[];
+  if(!proxy&&/^https?:/.test(location.protocol))urls.unshift(["same-origin",location.origin+"/adsb?lat="+lat+"&lon="+lon+"&dist=5"]);
+  if(proxy){urls.length=0;urls.push(["proxy",proxy+(proxy.includes("?")?"&":"?")+"lat="+lat+"&lon="+lon+"&dist=5"])}
+  for(const [name,url] of urls){
+    try{
+      const c=new AbortController(),to=setTimeout(()=>c.abort(),8000);
+      const res=await fetch(url,{signal:c.signal});clearTimeout(to);
+      if(!res.ok){let m="HTTP "+res.status;try{const j=await res.json();if(j.details)m+=" ["+j.details.join("; ")+"]"}catch(e2){}throw new Error(m)}
+      const d=await res.json();
+      const list=(d.ac||d.aircraft||[]).filter(a=>a.lat!=null).map(a=>{
+        const alt=a.alt_baro==="ground"?0:a.alt_baro;
+        return {lat:a.lat,lon:a.lon,trk:a.track,alt,gs:a.gs,name:(a.flight||a.r||a.hex||"?").trim(),
+          col:(alt!=null&&alt<1500)?"#ff5c5c":"#3ddc97"}});
+      scope(list);aT=Date.now();aErr="";aSrc=name+", "+(d.ac||d.aircraft||[]).length+" raw";
+      $("acsum").textContent=list.length?list.length+" aircraft seen":"No ADS-B seen (not the same as airspace clear)";
+      $("acsum").style.color=list.length?"":"var(--warn)";
+      $("aclist").textContent=list.map(a=>a.name+" "+(a.alt??"?")+" ft").join(" · ");
+      return;
+    }catch(e){errs.push(name+": "+(e.name==="AbortError"?"timeout":e.message))}
+  }
+  aErr=errs.join(" | ");
+  $("acsum").textContent="ADS-B feed unavailable – do NOT assume airspace is clear";
+  $("acsum").style.color="var(--bad)";
+}
+
+// Timer
+let next=0,running=false,due=false,ac;
+function beep(){try{ac=ac||new (window.AudioContext||webkitAudioContext)();
+  [0,.25,.5].forEach(t=>{const o=ac.createOscillator(),g=ac.createGain();o.frequency.value=880;
+  o.connect(g);g.connect(ac.destination);g.gain.value=.3;o.start(ac.currentTime+t);o.stop(ac.currentTime+t+.15)})}catch(e){}
+  navigator.vibrate&&navigator.vibrate([300,150,300]);}
+function reset(){next=Date.now()+Math.max(1,+$("mins").value||10)*60000;due=false;$("tcard").classList.remove("due")}
+$("tstart").onclick=()=>{running=true;reset();
+  window.Notification&&Notification.permission==="default"&&Notification.requestPermission();
+  try{ac=ac||new (window.AudioContext||webkitAudioContext)()}catch(e){}};
+$("tack").onclick=()=>{if(running)reset()};
+$("tstop").onclick=()=>{running=false;due=false;$("cd").textContent="--:--";$("tcard").classList.remove("due")};
+setInterval(()=>{
+  if(running){const r=next-Date.now();
+    if(r<=0){$("cd").textContent="CALL DUE";if(!due){due=true;$("tcard").classList.add("due")}beep();
+      if(window.Notification&&Notification.permission==="granted")new Notification("Radio call due")}
+    else{const s=Math.ceil(r/1000);$("cd").textContent=String(s/60|0).padStart(2,"0")+":"+String(s%60).padStart(2,"0")}}
+  agetxt($("wage"),"Weather",wT,wErr);agetxt($("aage"),"ADS-B"+(aSrc?" ("+aSrc+")":""),aT,aErr);
+},1000);
+
+setInterval(()=>{if(have)weather()},300000);setInterval(()=>{if(have)adsb()},5000);
+</script>
+</body>
+</html>
