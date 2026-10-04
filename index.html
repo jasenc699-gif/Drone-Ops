@@ -105,6 +105,7 @@ select{background:#0f1419;color:var(--tx);border:1px solid #2b3745;border-radius
   <label class="mu" style="display:block;margin-top:10px">Your aircraft wind limit <input id="lim" type="number" min="5" max="100" value="30" style="width:64px;padding:6px"> km/h</label>
   <div class="mu" style="font-size:12px">Indicative only. Use your aircraft's limits and your exposition.</div>
   <div class="mu" id="wage" style="margin-top:6px">No data yet</div>
+  <button class="g" id="wxbtn" style="padding:8px 12px;font-size:14px;margin-top:6px">↻ Refresh weather</button>
 </div>
 
 <div class="card">
@@ -112,11 +113,11 @@ select{background:#0f1419;color:var(--tx);border:1px solid #2b3745;border-radius
   <div id="asp" class="asp mu">Airspace: waiting for location…</div>
   <div id="near" class="near mu">Waiting for aircraft data…</div>
   <div class="aglrow">
-    <label class="mu">Ceiling <input id="aceil" type="number" min="50" value="400" style="width:70px;padding:6px"> ft AGL</label>
-    <label class="mu">Radius <input id="arad" type="number" min="0.5" step="0.5" value="2" style="width:60px;padding:6px"> nm</label>
+    <label class="mu">Ceiling <input id="aceil" type="number" min="1" value="400" style="width:72px;padding:6px"> <select id="aceilu" style="padding:6px"><option value="ft">ft</option><option value="m">m</option></select> AGL</label>
+    <label class="mu">Radius <input id="arad" type="number" min="0.1" step="any" value="2" style="width:72px;padding:6px"> <select id="aradu" style="padding:6px"><option value="nm">nm</option><option value="m">m</option></select></label>
     <button class="g" id="asnd" style="padding:8px 12px;font-size:14px">🔇 Sound off</button>
   </div>
-  <div class="mu" style="font-size:12px;margin-bottom:8px">Red alert: an aircraft inside the radius at or below ceiling + 200 ft. Amber: up to ceiling + 600 ft, or height unknown. Tap Sound to enable tones.</div>
+  <div class="mu" id="alerthint" style="font-size:12px;margin-bottom:8px"></div>
   <div id="map"></div>
   <div class="aglrow" id="asplay" style="margin-top:8px">
     <label class="mu" style="color:#4aa8ff"><input type="checkbox" data-c="C" checked>Controlled</label>
@@ -266,7 +267,11 @@ async function weather(){
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const NMI=1852;let map=null,umark=null,ring=null,mk={},acs={},selHex=null,recenter=true,accC=null,gpsAcc=0;
 let elevM=null,qnh=1013.25,aceil=400,arad=2,soundOn=false,lastLevel=0,lastBeep=0,placeMode=false;
-try{aceil=+localStorage.getItem("aceil")||400;arad=+localStorage.getItem("arad")||2}catch(e){}
+let aceilV=400,aceilU="ft",aradV=2,aradU="nm";
+try{aceilV=+localStorage.getItem("aceilV")||400;aceilU=localStorage.getItem("aceilU")==="m"?"m":"ft";aradV=+localStorage.getItem("aradV")||2;aradU=localStorage.getItem("aradU")==="m"?"m":"nm"}catch(e){}
+aceil=aceilU==="m"?aceilV/0.3048:aceilV;arad=aradU==="m"?aradV/1852:aradV;
+const fmtH=ft=>aceilU==="m"?Math.round(ft*0.3048/5)*5+" m":Math.round(ft/10)*10+" ft";
+const fmtD=nm=>aradU==="m"?(nm*1852>=1000?(nm*1.852).toFixed(1)+" km":Math.round(nm*1852)+" m"):nm.toFixed(1)+" nm";
 const dist=(a,b,c,d)=>{const R=Math.PI/180,x=(d-b)*R*Math.cos((a+c)/2*R),y=(c-a)*R;return Math.hypot(x,y)*3440.065};
 const brg=(a,b,c,d)=>{const R=Math.PI/180,y=Math.sin((d-b)*R)*Math.cos(c*R),x=Math.cos(a*R)*Math.sin(c*R)-Math.sin(a*R)*Math.cos(c*R)*Math.cos((d-b)*R);return (Math.atan2(y,x)/R+360)%360};
 function initMap(){
@@ -312,14 +317,14 @@ function showInfo(){
   el.innerHTML=`<div class="big2">${esc(a.name)}</div>`+(em?`<div class="em">${em}</div>`:"")+`<div class="g2">`+
     F("Altitude (baro, AMSL)",alt)+F("GPS altitude",a.agm!=null&&a.agm!=="ground"?a.agm+" ft":null)+
     F("Est. height above you",hab(a))+F("Vertical rate",vr)+F("Ground speed",a.gs!=null?Math.round(a.gs)+" kt ("+Math.round(a.gs*1.852)+" km/h)":null)+
-    F("Track",a.trk!=null?Math.round(a.trk)+"°":null)+F("Distance from you",d.toFixed(1)+" nm "+CARD(b))+
+    F("Track",a.trk!=null?Math.round(a.trk)+"°":null)+F("Distance from you",fmtD(d)+" "+CARD(b))+
     F("Type",a.type)+F("Registration",a.reg)+F("Squawk",a.sq)+F("Last heard",a.seen!=null?Math.round(a.seen)+" s ago":null)+`</div>`;
 }
 function renderList(list){
   const box=$("aclist");box.innerHTML="";
   list.map(a=>({a,d:dist(lat,lon,a.lat,a.lon),b:brg(lat,lon,a.lat,a.lon)})).sort((x,y)=>x.d-y.d).forEach(({a,d,b})=>{
     const btn=document.createElement("button");btn.className="g acrow"+(a.hex===selHex?" on":"");
-    btn.textContent=a.name+" · "+(a.gnd?"ground":a.alt==null?"? ft":a.alt+" ft")+" · "+d.toFixed(1)+" nm "+CARD(b);
+    btn.textContent=a.name+" · "+(a.gnd?"ground":a.alt==null?"? ft":a.alt+" ft")+" · "+fmtD(d)+" "+CARD(b);
     btn.onclick=()=>select(a.hex);box.appendChild(btn);
   });
 }
@@ -366,11 +371,12 @@ function bboxOf(g){
   (function w(c){if(typeof c[0]==="number"){b[0]=Math.min(b[0],c[0]);b[1]=Math.min(b[1],c[1]);b[2]=Math.max(b[2],c[0]);b[3]=Math.max(b[3],c[1])}else c.forEach(w)})(g.coordinates);
   return b;
 }
-function aspEffect(lo,elev,ceil){
+function aspEffect(lo,elev,ceil,fmt){
+  fmt=fmt||(v=>Math.round(v)+" ft");
   if(lo.ft==null)return "";
   let a=lo.d==="GND"?lo.ft:(elev==null?null:lo.ft-elev*3.281);
   if(a==null)return "";
-  return a<=ceil?" – reaches your "+ceil+" ft ceiling":" – starts about "+(Math.round(a/50)*50)+" ft AGL, above your ceiling";
+  return a<=ceil?" – reaches your "+fmt(ceil)+" ceiling":" – starts about "+fmt(Math.round(a/50)*50)+" AGL, above your ceiling";
 }
 /*END-ASP-HELPERS*/
 let aspFeats=[],aspGroups={},aspShow={C:true,Z:true,R:true,O:true},aspStarted=false,aspHtml="";
@@ -419,7 +425,7 @@ function checkAirspace(){
   if(!hits.length){html="<b>Not inside any mapped zone.</b><div style=\"font-size:12px\">Not the same as clear. Check Airshare and AIP New Zealand, and aerodrome buffers.</div>"}
   else{
     cls="asp "+({R:"r",C:"c",Z:"z",O:""}[hits[0].cat]);
-    html="<b>You are inside "+hits.length+" mapped zone"+(hits.length>1?"s":"")+":</b>"+hits.map(x=>"<div>"+esc(x.name)+" · "+esc(x.tname)+(x.cname?" · Class "+x.cname:"")+"<br><span style=\"font-size:12px\">"+esc(x.lo.t)+" to "+esc(x.up.t)+esc(aspEffect(x.lo,elevM,aceil))+"</span></div>").join("")+
+    html="<b>You are inside "+hits.length+" mapped zone"+(hits.length>1?"s":"")+":</b>"+hits.map(x=>"<div>"+esc(x.name)+" · "+esc(x.tname)+(x.cname?" · Class "+x.cname:"")+"<br><span style=\"font-size:12px\">"+esc(x.lo.t)+" to "+esc(x.up.t)+esc(aspEffect(x.lo,elevM,aceil,fmtH))+"</span></div>").join("")+
       "<div style=\"font-size:12px\">Controlled airspace needs ATC clearance. Confirm with Airshare, AIP and your exposition.</div>";
   }
   if(html!==aspHtml){aspHtml=html;$("asp").className=cls;$("asp").innerHTML=html}
@@ -443,10 +449,10 @@ function checkAlerts(list){
   const c=air.map(a=>({a,d:dist(lat,lon,a.lat,a.lon),b:brg(lat,lon,a.lat,a.lon),h:agl(a)})).sort((x,y)=>x.d-y.d);
   let level=0,who=null;
   c.forEach(x=>{if(x.d>arad)return;const lv=x.h==null?1:x.h<=aceil+200?2:x.h<=aceil+600?1:0;if(lv>level){level=lv;who=x}});
-  const f=who||c[0],hs=f.h==null?"height unknown":"≈ "+Math.round(f.h/10)*10+" ft above you";
+  const f=who||c[0],hs=f.h==null?"height unknown":"≈ "+fmtH(f.h)+" above you";
   const title=level===2?"⚠ WARNING – AIRCRAFT NEAR YOUR HEIGHT":level===1?"CAUTION – AIRCRAFT NEAR YOUR AREA":"Nearest aircraft";
   box.className="near "+(level===2?"bad":level===1?"warn":"ok");
-  box.innerHTML="<div style=\"font-size:13px;font-weight:700\">"+title+"</div><div class=\"huge\" style=\"font-size:32px;margin:4px 0\">"+esc(hs)+"</div><div><b>"+esc(f.a.name)+"</b> · "+f.d.toFixed(1)+" nm "+CARD(f.b)+(f.a.alt!=null?" · baro "+f.a.alt+" ft":"")+"</div>"+
+  box.innerHTML="<div style=\"font-size:13px;font-weight:700\">"+title+"</div><div class=\"huge\" style=\"font-size:32px;margin:4px 0\">"+esc(hs)+"</div><div><b>"+esc(f.a.name)+"</b> · "+fmtD(f.d)+" "+CARD(f.b)+(f.a.alt!=null?" · baro "+f.a.alt+" ft ("+Math.round(f.a.alt*0.3048)+" m)":"")+"</div>"+
     "<div style=\"font-size:12px;opacity:.8\">"+(f.h!=null?"Estimated from barometric altitude, QNH and ground elevation. Allow ±200 ft.":"Ground elevation or aircraft altitude not available.")+"</div>";
   if(level>lastLevel)lastBeep=0;
   const now=Date.now();
@@ -458,9 +464,22 @@ function checkAlerts(list){
 }
 $("recbtn").onclick=()=>{recenter=true;if(map)map.setView([lat,lon],12)};
 $("placebtn").onclick=()=>{placeMode=!placeMode;$("placebtn").textContent=placeMode?"Tap the map to place yourself…":"📍 Place me on map";$("placebtn").style.outline=placeMode?"2px solid var(--ac)":""};
-$("aceil").value=aceil;$("arad").value=arad;
-$("aceil").onchange=()=>{aceil=Math.max(50,+$("aceil").value||400);try{localStorage.setItem("aceil",aceil)}catch(e){}checkAlerts(Object.values(acs))};
-$("arad").onchange=()=>{arad=Math.max(.5,+$("arad").value||2);try{localStorage.setItem("arad",arad)}catch(e){}checkAlerts(Object.values(acs))};
+$("aceil").value=aceilV;$("aceilu").value=aceilU;$("arad").value=aradV;$("aradu").value=aradU;
+function hint(){$("alerthint").textContent="Red alert: an aircraft inside the radius at or below ceiling + "+fmtH(200)+". Amber: up to ceiling + "+fmtH(600)+", or height unknown. Tap Sound to enable tones."}
+function lims(){
+  aceil=aceilU==="m"?aceilV/0.3048:aceilV;arad=aradU==="m"?aradV/1852:aradV;
+  try{localStorage.setItem("aceilV",aceilV);localStorage.setItem("aceilU",aceilU);localStorage.setItem("aradV",aradV);localStorage.setItem("aradU",aradU)}catch(e){}
+  hint();checkAlerts(Object.values(acs));aspHtml="";checkAirspace();renderList(Object.values(acs));showInfo();
+}
+$("aceil").onchange=()=>{aceilV=Math.max(1,+$("aceil").value||(aceilU==="m"?120:400));lims()};
+$("aradu").onchange=()=>{const n=$("aradu").value;if(n===aradU)return;aradV=n==="m"?Math.max(50,Math.round(arad*1852/50)*50):Math.max(.1,Math.round(arad*10)/10);aradU=n;$("arad").value=aradV;lims()};
+$("aceilu").onchange=()=>{const n=$("aceilu").value;if(n===aceilU)return;aceilV=n==="m"?Math.round(aceil*0.3048/5)*5:Math.round(aceil/10)*10;aceilU=n;$("aceil").value=aceilV;lims()};
+$("arad").onchange=()=>{aradV=Math.max(aradU==="m"?50:.1,+$("arad").value||(aradU==="m"?3700:2));lims()};
+hint();
+$("wxbtn").onclick=async()=>{
+  const b=$("wxbtn");if(!have){b.textContent="Waiting for location…";setTimeout(()=>{b.textContent="↻ Refresh weather"},2000);return}
+  b.disabled=true;b.textContent="Refreshing…";await weather();b.disabled=false;b.textContent=wErr?"Failed – tap to retry":"↻ Refresh weather";
+};
 $("asnd").onclick=()=>{soundOn=!soundOn;$("asnd").textContent=soundOn?"🔔 Sound on":"🔇 Sound off";if(soundOn)beepN(1,800)};
 function scope(list){
   let s='';
