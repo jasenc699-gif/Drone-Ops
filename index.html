@@ -41,8 +41,8 @@ select{background:#0f1419;color:var(--tx);border:1px solid #2b3745;border-radius
 .aci .em{background:var(--bad);color:#fff;border-radius:8px;padding:6px 8px;font-weight:700;margin:6px 0}
 .acrow{display:block;width:100%;text-align:left;margin-top:6px;font-size:14px;font-weight:400;padding:10px}.acrow.on{outline:2px solid var(--ac)}
 .me{background:none;border:0}
-.me .dot{position:absolute;left:5px;top:5px;width:14px;height:14px;border-radius:50%;background:#4aa8ff;border:2px solid #fff;box-shadow:0 0 4px rgba(0,0,0,.5)}
-.me .pulse{position:absolute;left:0;top:0;width:24px;height:24px;border-radius:50%;background:rgba(74,168,255,.55);animation:pu 1.8s ease-out infinite}
+.me .dot{position:absolute;left:15px;top:15px;cursor:grab;width:14px;height:14px;border-radius:50%;background:#4aa8ff;border:2px solid #fff;box-shadow:0 0 4px rgba(0,0,0,.5)}
+.me .pulse{position:absolute;left:10px;top:10px;width:24px;height:24px;border-radius:50%;background:rgba(74,168,255,.55);animation:pu 1.8s ease-out infinite}
 @keyframes pu{0%{transform:scale(.5);opacity:.9}100%{transform:scale(2.8);opacity:0}}
 .near{background:#0f1419;border-radius:10px;padding:10px;margin-bottom:8px;border-left:5px solid var(--mu)}
 .near.ok{border-left-color:var(--ok)}.near.warn{background:#3a2c0c;color:var(--warn);border-left-color:var(--warn)}
@@ -128,6 +128,7 @@ select{background:#0f1419;color:var(--tx);border:1px solid #2b3745;border-radius
   <div class="mu" style="font-size:12px">Airspace data: <a href="https://www.openaip.net" style="color:var(--ac)">OpenAIP</a> (CC BY-NC 4.0). Community-maintained, not official, and may be out of date. Check Airshare and AIP New Zealand before flying.</div>
   <svg id="scope" viewBox="-110 -110 220 220" style="display:none"></svg>
   <button class="g" id="recbtn" style="margin-top:8px;padding:8px 12px;font-size:14px">Recenter on me</button>
+  <button class="g" id="placebtn" style="margin-top:8px;padding:8px 12px;font-size:14px">📍 Place me on map</button>
   <div id="acinfo" class="aci mu">Tap an aircraft on the map or in the list for details.</div>
   <div id="acsum" style="margin-top:8px;font-weight:600">–</div>
   <div id="aclist"></div>
@@ -165,7 +166,7 @@ let gpsId=null,gpsT=0;
 function startGPS(){
   if(!navigator.geolocation){$("pos").textContent="GPS not supported on this device/browser.";return}
   if(gpsId!==null)navigator.geolocation.clearWatch(gpsId);
-  $("pos").textContent="Waiting for GPS fix…";
+  $("pos").textContent="Waiting for GPS fix…";have=false;
   gpsId=navigator.geolocation.watchPosition(p=>{
     const first=!have;gpsAcc=p.coords.accuracy;lat=p.coords.latitude;lon=p.coords.longitude;have=true;gpsT=Date.now();
     $("pos").textContent="GPS: "+lat.toFixed(5)+", "+lon.toFixed(5)+" (±"+Math.round(p.coords.accuracy)+" m)"+
@@ -178,9 +179,9 @@ function startGPS(){
   },{enableHighAccuracy:true,maximumAge:5000,timeout:20000});
 }
 $("gpsbtn").onclick=startGPS;
-function setLoc(la,lo,label){
+function setLoc(la,lo,label,keep){
   if(gpsId!==null){navigator.geolocation.clearWatch(gpsId);gpsId=null}
-  lat=la;lon=lo;have=true;recenter=true;gpsAcc=0;elevM=null;wT=0;aT=0;wErr="";aErr="";
+  lat=la;lon=lo;have=true;recenter=!keep;gpsAcc=0;elevM=null;wT=0;aT=0;wErr="";aErr="";
   $("pos").textContent=label+": "+lat.toFixed(5)+", "+lon.toFixed(5)+" (GPS off – tap Retry GPS to resume)";
   initMap();updateUser();
   weather();adsb();
@@ -263,7 +264,7 @@ async function weather(){
 
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const NMI=1852;let map=null,umark=null,ring=null,mk={},acs={},selHex=null,recenter=true,accC=null,gpsAcc=0;
-let elevM=null,qnh=1013.25,aceil=400,arad=2,soundOn=false,lastLevel=0,lastBeep=0;
+let elevM=null,qnh=1013.25,aceil=400,arad=2,soundOn=false,lastLevel=0,lastBeep=0,placeMode=false;
 try{aceil=+localStorage.getItem("aceil")||400;arad=+localStorage.getItem("arad")||2}catch(e){}
 const dist=(a,b,c,d)=>{const R=Math.PI/180,x=(d-b)*R*Math.cos((a+c)/2*R),y=(c-a)*R;return Math.hypot(x,y)*3440.065};
 const brg=(a,b,c,d)=>{const R=Math.PI/180,y=Math.sin((d-b)*R)*Math.cos(c*R),x=Math.cos(a*R)*Math.sin(c*R)-Math.sin(a*R)*Math.cos(c*R)*Math.cos((d-b)*R);return (Math.atan2(y,x)/R+360)%360};
@@ -274,9 +275,11 @@ function initMap(){
   map=L.map("map").setView([lat,lon],12);
   L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:18,attribution:"© OpenStreetMap"}).addTo(map);
   accC=L.circle([lat,lon],{radius:0,stroke:false,fillColor:"#4aa8ff",fillOpacity:.12}).addTo(map);
-  umark=L.marker([lat,lon],{icon:L.divIcon({className:"me",html:'<div class="pulse"></div><div class="dot"></div>',iconSize:[24,24],iconAnchor:[12,12]}),interactive:false,keyboard:false,zIndexOffset:1000}).addTo(map);
+  umark=L.marker([lat,lon],{icon:L.divIcon({className:"me",html:'<div class="pulse"></div><div class="dot"></div>',iconSize:[44,44],iconAnchor:[22,22]}),draggable:true,keyboard:false,zIndexOffset:1000}).addTo(map);
   ring=L.circle([lat,lon],{radius:5*NMI,color:"#4aa8ff",weight:1,fill:false,dashArray:"4 4"}).addTo(map);
   map.on("dragstart",()=>{recenter=false});
+  map.on("click",e=>{if(!placeMode)return;placeMode=false;$("placebtn").textContent="📍 Place me on map";$("placebtn").style.outline="";setLoc(e.latlng.lat,e.latlng.lng,"MAP",true)});
+  umark.on("dragend",()=>{const p=umark.getLatLng();setLoc(p.lat,p.lng,"MAP",true)});
   if(aspFeats.length)buildAspLayers();
 }
 function updateUser(){
@@ -450,6 +453,7 @@ function checkAlerts(list){
   lastLevel=level;
 }
 $("recbtn").onclick=()=>{recenter=true;if(map)map.setView([lat,lon],12)};
+$("placebtn").onclick=()=>{placeMode=!placeMode;$("placebtn").textContent=placeMode?"Tap the map to place yourself…":"📍 Place me on map";$("placebtn").style.outline=placeMode?"2px solid var(--ac)":""};
 $("aceil").value=aceil;$("arad").value=arad;
 $("aceil").onchange=()=>{aceil=Math.max(50,+$("aceil").value||400);try{localStorage.setItem("aceil",aceil)}catch(e){}checkAlerts(Object.values(acs))};
 $("arad").onchange=()=>{arad=Math.max(.5,+$("arad").value||2);try{localStorage.setItem("arad",arad)}catch(e){}checkAlerts(Object.values(acs))};
