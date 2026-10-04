@@ -122,7 +122,7 @@ select{background:#0f1419;color:var(--tx);border:1px solid #2b3745;border-radius
     <label class="mu" style="color:#4aa8ff"><input type="checkbox" data-c="C" checked>Controlled</label>
     <label class="mu" style="color:#b388ff"><input type="checkbox" data-c="Z" checked>Radio / ATZ</label>
     <label class="mu" style="color:#ff5c5c"><input type="checkbox" data-c="R" checked>Restricted / Danger</label>
-    <label class="mu"><input type="checkbox" data-c="O">Other</label>
+    <label class="mu"><input type="checkbox" data-c="O" checked>Other</label>
   </div>
   <div class="mu" id="aspst" style="font-size:12px">Airspace data: loading…</div>
   <div class="mu" style="font-size:12px">Airspace data: <a href="https://www.openaip.net" style="color:var(--ac)">OpenAIP</a> (CC BY-NC 4.0). Community-maintained, not official, and may be out of date. Check Airshare and AIP New Zealand before flying.</div>
@@ -371,14 +371,14 @@ function aspEffect(lo,elev,ceil){
   return a<=ceil?" – reaches your "+ceil+" ft ceiling":" – starts about "+(Math.round(a/50)*50)+" ft AGL, above your ceiling";
 }
 /*END-ASP-HELPERS*/
-let aspFeats=[],aspGroups={},aspShow={C:true,Z:true,R:true,O:false},aspStarted=false,aspHtml="";
+let aspFeats=[],aspGroups={},aspShow={C:true,Z:true,R:true,O:true},aspStarted=false,aspHtml="";
 const ASPCOL={C:"#4aa8ff",Z:"#b388ff",R:"#ff5c5c",O:"#8a98a6"};
 const ASPNAME={C:"Controlled airspace",Z:"Radio / traffic zone",R:"Restricted / danger",O:"Other airspace"};
 async function loadAirspace(){
   const srcs=[];if(/^https?:/.test(location.protocol))srcs.push(location.origin+"/airspace");
-  srcs.push("https://storage.openaip.net/openaip-system-exports/nz_asp.geojson");
+  srcs.push("https://s3.openaip.net/openaip-system-exports/nz_asp.geojson");srcs.push("https://storage.openaip.net/openaip-system-exports/nz_asp.geojson");
   let d=null;const errs=[];
-  for(const s of srcs){try{const r=await fetch(s);if(!r.ok)throw new Error("HTTP "+r.status);d=await r.json();break}catch(e){errs.push(e.message||"blocked")}}
+  for(const s of srcs){try{const r=await fetch(s);if(!r.ok)throw new Error("HTTP "+r.status);d=await r.json();break}catch(e){errs.push(s.replace(/^https?:\/\//,"").split("/")[0]+": "+(e.message||"blocked"))}}
   if(!d){$("aspst").textContent="Airspace data FAILED to load ("+errs.join(" | ")+"). No airspace warnings are active.";$("asp").className="asp r";$("asp").textContent="Airspace data not loaded – no airspace warnings. Check Airshare / AIP New Zealand.";return}
   const arr=d.features||d.items||(Array.isArray(d)?d:[]);
   aspFeats=[];
@@ -390,7 +390,8 @@ async function loadAirspace(){
     aspFeats.push({f,g,name:p.name||p._name||"Unnamed",tn,cn,cat:catOf(tn,cn),lo:aspLim(p.lowerLimit),up:aspLim(p.upperLimit),bb:bboxOf(g),
       tname:tn>=0?ATYPES[tn]:String(p.type||"?"),cname:cn>=0?ACLS[cn]:""});
   });
-  $("aspst").textContent="Airspace data loaded: "+aspFeats.length+" zones.";
+  const cnt={};aspFeats.forEach(x=>{cnt[x.tname]=(cnt[x.tname]||0)+1});
+  $("aspst").textContent="Airspace data loaded: "+aspFeats.length+" zones shown of "+arr.length+" in file ("+Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a]).map(k=>k+" "+cnt[k]).join(", ")+").";
   if(map)buildAspLayers();
   checkAirspace();
 }
