@@ -1,1 +1,4 @@
-{ "rewrites": [{ "source": "/adsb", "destination": "/api/adsb" }] }
+{ "rewrites": [
+  { "source": "/adsb", "destination": "/api/adsb" },
+  { "source": "/airspace", "destination": "/api/airspace" }
+] }
