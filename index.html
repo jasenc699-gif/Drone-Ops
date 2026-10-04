@@ -18,7 +18,7 @@ h2{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--mu);
 button{background:var(--ac);color:#06121f;border:0;border-radius:10px;padding:12px 16px;font-size:16px;font-weight:600}
 button.g{background:#2b3745;color:var(--tx)}
 input{background:#0f1419;color:var(--tx);border:1px solid #2b3745;border-radius:8px;padding:10px;width:80px;font-size:16px}
-svg{width:100%;max-width:420px;display:block;margin:0 auto}
+#scope{width:100%;max-width:420px;display:block;margin:0 auto}
 .due{background:var(--bad);animation:p 1s infinite}
 @keyframes p{50%{opacity:.6}}
 #disc{background:#2a2112;border:1px solid var(--warn);color:#ffd98a;font-size:13px}
@@ -125,6 +125,7 @@ select{background:#0f1419;color:var(--tx);border:1px solid #2b3745;border-radius
     <label class="mu"><input type="checkbox" data-c="O" checked>Other</label>
   </div>
   <div class="mu" id="aspst" style="font-size:12px">Airspace data: loading…</div>
+  <button class="g" id="aspretry" style="padding:6px 10px;font-size:13px;margin:4px 0">Reload airspace</button>
   <div class="mu" style="font-size:12px">Airspace data: <a href="https://www.openaip.net" style="color:var(--ac)">OpenAIP</a> (CC BY-NC 4.0). Community-maintained, not official, and may be out of date. Check Airshare and AIP New Zealand before flying.</div>
   <svg id="scope" viewBox="-110 -110 220 220" style="display:none"></svg>
   <button class="g" id="recbtn" style="margin-top:8px;padding:8px 12px;font-size:14px">Recenter on me</button>
@@ -335,12 +336,13 @@ function renderMap(list){
   checkAlerts(list);renderList(list);showInfo();
 }
 /*ASP-HELPERS*/
-const ATYPES=["OTHER","RESTRICTED","DANGER","PROHIBITED","CTR","TMZ","RMZ","TMA","TRA","TSA","FIR","UIR","ADIZ","ATZ","MATZ","AIRWAY","MTR","ALERT","WARNING","PFC","SPORT"];
-const ACLS=["A","B","C","D","E","F","G","SUA"];
+const ATYPES=["OTHER","RESTRICTED","DANGER","PROHIBITED","CTR","TMZ","RMZ","TMA","TRA","TSA","FIR","UIR","ADIZ","ATZ","MATZ","AWY","MTR","ALERT","WARNING","PROTECTED","HTZ","GLIDING","TRP","TIZ","TIA","MTA","CTA","ACC","SPORT","OVERFLIGHT","MRT","TFR","VFR SECTOR","FIS SECTOR","LTA","UTA","MCTR"];
+const AHIDE=[10,11,12,15,16,22,27,30,31,32,33];
+const ACLS=["A","B","C","D","E","F","G","?","SUA"];
 const pidx=(v,arr)=>typeof v==="number"?v:typeof v==="string"?arr.indexOf(v.toUpperCase()):-1;
 function aspLim(l){
   if(!l||l.value==null)return {t:"?",ft:null,d:null};
-  const v=+l.value,u=typeof l.unit==="number"?["M","FT","FL"][l.unit]:String(l.unit||"FT").toUpperCase();
+  const v=+l.value,u=typeof l.unit==="number"?({0:"M",1:"FT",6:"FL"}[l.unit]||"FT"):String(l.unit||"FT").toUpperCase();
   const r=typeof l.referenceDatum==="number"?["GND","AMSL","STD"][l.referenceDatum]:String(l.referenceDatum||"").toUpperCase();
   const d=(r==="GND"||r==="AGL")?"GND":r==="STD"?"STD":"AMSL";
   if(u==="FL")return {t:"FL"+v,ft:v*100,d:"STD"};
@@ -349,9 +351,9 @@ function aspLim(l){
   return {t:Math.round(ft)+" ft "+(d==="GND"?"AGL":d==="STD"?"STD":"AMSL"),ft,d};
 }
 function catOf(tn,cn){
-  if([1,2,3,8,9,17,18].includes(tn))return "R";
-  if([5,6,13,14].includes(tn))return "Z";
-  if([4,7].includes(tn)||(cn>=0&&cn<=4))return "C";
+  if([1,2,3,8,9,17,18,19,25,29].includes(tn))return "R";
+  if([5,6,13,14,20,23,24].includes(tn))return "Z";
+  if([4,7,26,36].includes(tn)||(cn>=0&&cn<=4))return "C";
   return "O";
 }
 function inRing(x,y,r){let c=false;for(let i=0,j=r.length-1;i<r.length;j=i++){const a=r[i],b=r[j];if((a[1]>y)!==(b[1]>y)&&x<(b[0]-a[0])*(y-a[1])/(b[1]-a[1])+a[0])c=!c}return c}
@@ -386,7 +388,7 @@ async function loadAirspace(){
     const f=it.type==="Feature"?it:{type:"Feature",properties:it,geometry:it.geometry},p=f.properties||{},g=f.geometry;
     if(!g||(g.type!=="Polygon"&&g.type!=="MultiPolygon"))return;
     const tn=pidx(p.type,ATYPES),cn=pidx(p.icaoClass,ACLS);
-    if([10,11,12,15,16].includes(tn))return;
+    if(AHIDE.includes(tn))return;
     aspFeats.push({f,g,name:p.name||p._name||"Unnamed",tn,cn,cat:catOf(tn,cn),lo:aspLim(p.lowerLimit),up:aspLim(p.upperLimit),bb:bboxOf(g),
       tname:tn>=0?ATYPES[tn]:String(p.type||"?"),cname:cn>=0?ACLS[cn]:""});
   });
@@ -422,6 +424,7 @@ function checkAirspace(){
   }
   if(html!==aspHtml){aspHtml=html;$("asp").className=cls;$("asp").innerHTML=html}
 }
+$("aspretry").onclick=()=>{$("aspst").textContent="Airspace data: loading…";loadAirspace()};
 document.querySelectorAll("#asplay input").forEach(i=>{i.onchange=()=>{aspShow[i.dataset.c]=i.checked;applyAsp()}});
 function agl(a){
   if(a.gnd||a.alt==null||elevM==null)return null;
