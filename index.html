@@ -33,7 +33,7 @@ input{background:#0f1419;color:var(--tx);border:1px solid #2b3745;border-radius:
 select{background:#0f1419;color:var(--tx);border:1px solid #2b3745;border-radius:8px;padding:8px;font-size:16px}
 .aglbox{background:#0f1419;border-radius:10px;padding:10px;margin:10px 0}.aglrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:6px 0}
 #map{height:360px;border-radius:10px;overflow:hidden;background:#0f1419}
-.leaflet-container{font:inherit}.leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.95) contrast(.9)}
+.leaflet-container{font:inherit}#map.dark .leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.95) contrast(.9)}
 .pl{background:none;border:0;text-align:center;color:#fff;font-size:10px;text-shadow:0 0 3px #000,0 0 3px #000;line-height:1}
 .pl svg{display:block;margin:0 auto}.pl.sel svg{filter:drop-shadow(0 0 5px #fff)}
 .aci{background:#0f1419;border-radius:10px;padding:10px;margin-top:8px;font-size:14px}
@@ -51,6 +51,10 @@ select{background:#0f1419;color:var(--tx);border:1px solid #2b3745;border-radius
 .asp.ok{border-left-color:var(--ok)}.asp.c{background:#0f2538;color:#8cc8ff;border-left-color:var(--ac)}
 .asp.z{background:#2a1f3d;color:#cdb4ff;border-left-color:#b388ff}.asp.r{background:#40181a;color:#ff9a9a;border-left-color:var(--bad)}
 .asp div{margin-top:4px}input[type=checkbox]{width:auto;margin-right:4px}
+.leg{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;margin-top:8px}
+.leg label{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--tx)}
+.leg input{margin:0}.sw{width:14px;height:14px;border-radius:50%;border:2px solid;flex:none}
+.lnk{display:inline-block;background:#2b3745;color:var(--tx);border-radius:10px;padding:8px 12px;font-size:14px;font-weight:600;text-decoration:none}
 </style>
 </head>
 <body>
@@ -111,6 +115,13 @@ select{background:#0f1419;color:var(--tx);border:1px solid #2b3745;border-radius
 <div class="card">
   <h2>ADS-B (5 nm)</h2>
   <div id="asp" class="asp mu">Airspace: waiting for location…</div>
+  <div class="aglrow" style="margin:0 0 8px">
+    <b style="font-size:14px">Check NOTAMs:</b>
+    <a class="lnk" href="https://ifis.airways.co.nz" target="_blank" rel="noopener">IFIS</a>
+    <a class="lnk" href="https://gopreflight.co.nz" target="_blank" rel="noopener">PreFlight map</a>
+    <button class="g" id="cpbtn" style="padding:8px 12px;font-size:14px">Copy my position</button>
+  </div>
+  <div class="mu" style="font-size:12px;margin-bottom:8px">NOTAMs are not shown on this map. Check them before every flight.</div>
   <div id="near" class="near mu">Waiting for aircraft data…</div>
   <div class="aglrow">
     <label class="mu">Ceiling <input id="aceil" type="number" min="1" value="400" style="width:72px;padding:6px"> <select id="aceilu" style="padding:6px"><option value="ft">ft</option><option value="m">m</option></select> AGL</label>
@@ -119,18 +130,15 @@ select{background:#0f1419;color:var(--tx);border:1px solid #2b3745;border-radius
   </div>
   <div class="mu" id="alerthint" style="font-size:12px;margin-bottom:8px"></div>
   <div id="map"></div>
-  <div class="aglrow" id="asplay" style="margin-top:8px">
-    <label class="mu" style="color:#4aa8ff"><input type="checkbox" data-c="C" checked>Controlled</label>
-    <label class="mu" style="color:#b388ff"><input type="checkbox" data-c="Z" checked>Radio / ATZ</label>
-    <label class="mu" style="color:#ff5c5c"><input type="checkbox" data-c="R" checked>Restricted / Danger</label>
-    <label class="mu"><input type="checkbox" data-c="O" checked>Other</label>
-  </div>
+  <div class="leg" id="asplay"></div>
   <div class="mu" id="aspst" style="font-size:12px">Airspace data: loading…</div>
+  <div class="mu" id="adst" style="font-size:12px">Aerodrome circles: loading…</div>
   <button class="g" id="aspretry" style="padding:6px 10px;font-size:13px;margin:4px 0">Reload airspace</button>
-  <div class="mu" style="font-size:12px">Airspace data: <a href="https://www.openaip.net" style="color:var(--ac)">OpenAIP</a> (CC BY-NC 4.0). Community-maintained, not official, and may be out of date. Check Airshare and AIP New Zealand before flying.</div>
+  <div class="mu" style="font-size:12px">Airspace data: <a href="https://www.openaip.net" style="color:var(--ac)">OpenAIP</a> (CC BY-NC 4.0). Zone colours follow the Airshare legend, but this is not Airshare data: community-maintained, not official, may be out of date, and has no NOTAM or other-authority (land owner) areas. Check Airshare and AIP New Zealand before flying.</div>
   <svg id="scope" viewBox="-110 -110 220 220" style="display:none"></svg>
   <button class="g" id="recbtn" style="margin-top:8px;padding:8px 12px;font-size:14px">Recenter on me</button>
   <button class="g" id="placebtn" style="margin-top:8px;padding:8px 12px;font-size:14px">📍 Place me on map</button>
+  <button class="g" id="mapth" style="margin-top:8px;padding:8px 12px;font-size:14px">🌙 Dark map</button>
   <div id="acinfo" class="aci mu">Tap an aircraft on the map or in the list for details.</div>
   <div id="acsum" style="margin-top:8px;font-weight:600">–</div>
   <div id="aclist"></div>
@@ -275,7 +283,7 @@ const fmtD=nm=>aradU==="m"?(nm*1852>=1000?(nm*1.852).toFixed(1)+" km":Math.round
 const dist=(a,b,c,d)=>{const R=Math.PI/180,x=(d-b)*R*Math.cos((a+c)/2*R),y=(c-a)*R;return Math.hypot(x,y)*3440.065};
 const brg=(a,b,c,d)=>{const R=Math.PI/180,y=Math.sin((d-b)*R)*Math.cos(c*R),x=Math.cos(a*R)*Math.sin(c*R)-Math.sin(a*R)*Math.cos(c*R)*Math.cos((d-b)*R);return (Math.atan2(y,x)/R+360)%360};
 function initMap(){
-  if(!aspStarted){aspStarted=true;loadAirspace()}
+  if(!aspStarted){aspStarted=true;loadAirspace();loadAerodromes()}
   if(map)return;
   if(typeof L==="undefined"){$("map").style.display="none";$("scope").style.display="block";return}
   map=L.map("map").setView([lat,lon],12);
@@ -286,7 +294,7 @@ function initMap(){
   map.on("dragstart",()=>{recenter=false});
   map.on("click",e=>{if(!placeMode)return;placeMode=false;$("placebtn").textContent="📍 Place me on map";$("placebtn").style.outline="";setLoc(e.latlng.lat,e.latlng.lng,"MAP",true)});
   umark.on("dragend",()=>{const p=umark.getLatLng();setLoc(p.lat,p.lng,"MAP",true)});
-  if(aspFeats.length)buildAspLayers();
+  if(aspFeats.length||adFeats.length)buildAspLayers();
 }
 function updateUser(){
   checkAirspace();
@@ -356,9 +364,14 @@ function aspLim(l){
   return {t:Math.round(ft)+" ft "+(d==="GND"?"AGL":d==="STD"?"STD":"AMSL"),ft,d};
 }
 function catOf(tn,cn){
-  if([1,2,3,8,9,17,18,19,25,29].includes(tn))return "R";
-  if([5,6,13,14,20,23,24].includes(tn))return "Z";
-  if([4,7,26,36].includes(tn)||(cn>=0&&cn<=4))return "C";
+  if([4,36].includes(tn))return "CZ";
+  if([7,26].includes(tn))return "ATC";
+  if([1,3,19].includes(tn))return "NF";
+  if([2,17,18].includes(tn))return "DA";
+  if([8,9,14,25].includes(tn))return "MOA";
+  if(tn===29)return "LF";
+  if([5,6,13,20,23,24].includes(tn))return "RZ";
+  if(cn>=0&&cn<=4)return "ATC";
   return "O";
 }
 function inRing(x,y,r){let c=false;for(let i=0,j=r.length-1;i<r.length;j=i++){const a=r[i],b=r[j];if((a[1]>y)!==(b[1]>y)&&x<(b[0]-a[0])*(y-a[1])/(b[1]-a[1])+a[0])c=!c}return c}
@@ -379,9 +392,17 @@ function aspEffect(lo,elev,ceil,fmt){
   return a<=ceil?" – reaches your "+fmt(ceil)+" ceiling":" – starts about "+fmt(Math.round(a/50)*50)+" AGL, above your ceiling";
 }
 /*END-ASP-HELPERS*/
-let aspFeats=[],aspGroups={},aspShow={C:true,Z:true,R:true,O:true},aspStarted=false,aspHtml="";
-const ASPCOL={C:"#4aa8ff",Z:"#b388ff",R:"#ff5c5c",O:"#8a98a6"};
-const ASPNAME={C:"Controlled airspace",Z:"Radio / traffic zone",R:"Restricted / danger",O:"Other airspace"};
+let aspFeats=[],aspGroups={},aspShow={ATC:true,CZ:true,AD:true,NF:true,DA:true,LF:true,MOA:true,RZ:true,O:true},adFeats=[],aspStarted=false,aspHtml="";
+const ASPCAT={
+  ATC:{n:"ATC restrictions",c:"#3b2fa0",f:"#5c6bd6",o:.22,w:2},
+  CZ:{n:"Control zones",c:"#d6609b",f:"#e58ab8",o:.25},
+  AD:{n:"Aerodromes (4 km)",c:"#5b9bd5",f:"#a8cdf0",o:.25},
+  NF:{n:"No fly zones",c:"#17a2c3",f:"#7fd0e0",o:.25},
+  DA:{n:"Danger areas",c:"#c9b72a",f:"#f0e060",o:.4},
+  LF:{n:"Low flying zones",c:"#e0a040",f:"#f0c27a",o:.4},
+  MOA:{n:"Military operating areas",c:"#4fb83e",f:"#9be58a",o:.35},
+  RZ:{n:"Radio / traffic zones",c:"#78909c",f:"#78909c",o:.12,dash:"5 4"},
+  O:{n:"Other airspace",c:"#8a98a6",f:"#8a98a6",o:.06}};
 async function loadAirspace(){
   const srcs=[];if(/^https?:/.test(location.protocol))srcs.push(location.origin+"/airspace");
   srcs.push("https://s3.openaip.net/openaip-system-exports/nz_asp.geojson");srcs.push("https://storage.openaip.net/openaip-system-exports/nz_asp.geojson");
@@ -405,11 +426,14 @@ async function loadAirspace(){
 }
 function buildAspLayers(){
   Object.values(aspGroups).forEach(g=>map.removeLayer(g));aspGroups={};
-  ["C","Z","R","O"].forEach(c=>aspGroups[c]=L.layerGroup());
-  aspFeats.forEach(x=>{
-    const col=ASPCOL[x.cat];
-    L.geoJSON(x.f,{style:{color:col,weight:1.5,fillColor:col,fillOpacity:x.cat==="O"?.05:.12}})
-      .bindPopup("<b>"+esc(x.name)+"</b><br>"+esc(x.tname)+(x.cname?" · Class "+x.cname:"")+"<br>"+esc(x.lo.t)+" to "+esc(x.up.t)).addTo(aspGroups[x.cat]);
+  Object.keys(ASPCAT).forEach(c=>aspGroups[c]=L.layerGroup());
+  aspFeats.forEach(x=>{const k=ASPCAT[x.cat];
+    L.geoJSON(x.f,{style:{color:k.c,weight:k.w||1.5,fillColor:k.f,fillOpacity:k.o,dashArray:k.dash||null}})
+      .bindPopup("<b>"+esc(x.name)+"</b><br>"+esc(k.n)+"<br>"+esc(x.tname)+(x.cname?" · Class "+x.cname:"")+"<br>"+esc(x.lo.t)+" to "+esc(x.up.t)).addTo(aspGroups[x.cat]);
+  });
+  adFeats.forEach(a=>{const k=ASPCAT.AD;
+    L.circle([a.lat,a.lon],{radius:4000,color:k.c,weight:1.5,fillColor:k.f,fillOpacity:k.o}).bindPopup("<b>"+esc(a.name)+"</b>"+(a.icao?" ("+esc(a.icao)+")":"")+"<br>Aerodrome – 4 km circle").addTo(aspGroups.AD);
+    L.circleMarker([a.lat,a.lon],{radius:3,color:k.c,weight:1,fillColor:k.c,fillOpacity:1}).addTo(aspGroups.AD);
   });
   applyAsp();
 }
@@ -417,21 +441,49 @@ function applyAsp(){
   if(!map)return;
   Object.keys(aspGroups).forEach(c=>{if(aspShow[c])aspGroups[c].addTo(map);else map.removeLayer(aspGroups[c])});
 }
+async function loadAerodromes(){
+  const srcs=[];if(/^https?:/.test(location.protocol))srcs.push(location.origin+"/airspace?layer=apt");
+  srcs.push("https://s3.openaip.net/openaip-system-exports/nz_apt.geojson");srcs.push("https://storage.openaip.net/openaip-system-exports/nz_apt.geojson");
+  let d=null;const errs=[];
+  for(const s of srcs){try{const r=await fetch(s);if(!r.ok)throw new Error("HTTP "+r.status);d=await r.json();break}catch(e){errs.push(s.replace(/^https?:\/\//,"").split("/")[0]+": "+(e.message||"blocked"))}}
+  if(!d){$("adst").textContent="Aerodrome circles FAILED to load ("+errs.join(" | ")+"). Reload airspace to retry.";return}
+  const arr=d.features||d.items||(Array.isArray(d)?d:[]);adFeats=[];
+  arr.forEach(it=>{
+    const f=it.type==="Feature"?it:{properties:it,geometry:it.geometry},p=f.properties||{},g=f.geometry;
+    if(!g||g.type!=="Point"||p.type===8)return;
+    adFeats.push({name:p.name||"Aerodrome",icao:p.icaoCode||"",lon:g.coordinates[0],lat:g.coordinates[1]});
+  });
+  $("adst").textContent="Aerodrome circles loaded: "+adFeats.length+" (4 km, closed aerodromes left out).";
+  if(map)buildAspLayers();
+  aspHtml="";checkAirspace();
+}
 function checkAirspace(){
-  if(!have||!aspFeats.length)return;
-  const order={R:0,C:1,Z:2,O:3};
+  if(!have||(!aspFeats.length&&!adFeats.length))return;
+  const order={CZ:0,NF:0,DA:0,LF:0,MOA:1,ATC:1,RZ:2,O:3},cl={CZ:"c",ATC:"c",NF:"r",DA:"r",LF:"r",MOA:"r",RZ:"z",O:""};
   const hits=aspFeats.filter(x=>lon>=x.bb[0]&&lon<=x.bb[2]&&lat>=x.bb[1]&&lat<=x.bb[3]&&inGeom(lon,lat,x.g)).sort((a,b)=>order[a.cat]-order[b.cat]);
+  const ads=adFeats.map(a=>({a,d:dist(lat,lon,a.lat,a.lon)*1852})).filter(x=>x.d<=4000).sort((x,y)=>x.d-y.d);
   let cls="asp ok",html;
-  if(!hits.length){html="<b>Not inside any mapped zone.</b><div style=\"font-size:12px\">Not the same as clear. Check Airshare and AIP New Zealand, and aerodrome buffers.</div>"}
+  if(!hits.length&&!ads.length){html="<b>Not inside any mapped zone or aerodrome circle.</b><div style=\"font-size:12px\">Not the same as clear. Check Airshare and AIP New Zealand for NOTAMs, other-authority areas and landowner rules.</div>"}
   else{
-    cls="asp "+({R:"r",C:"c",Z:"z",O:""}[hits[0].cat]);
-    html="<b>You are inside "+hits.length+" mapped zone"+(hits.length>1?"s":"")+":</b>"+hits.map(x=>"<div>"+esc(x.name)+" · "+esc(x.tname)+(x.cname?" · Class "+x.cname:"")+"<br><span style=\"font-size:12px\">"+esc(x.lo.t)+" to "+esc(x.up.t)+esc(aspEffect(x.lo,elevM,aceil,fmtH))+"</span></div>").join("")+
+    cls="asp "+(hits.length?cl[hits[0].cat]:"c");
+    const n=hits.length+ads.length;
+    html="<b>You are inside "+n+" mapped zone"+(n>1?"s":"")+":</b>"+
+      hits.map(x=>"<div>"+esc(x.name)+" · "+esc(ASPCAT[x.cat].n)+(x.cname?" · Class "+x.cname:"")+"<br><span style=\"font-size:12px\">"+esc(x.lo.t)+" to "+esc(x.up.t)+esc(aspEffect(x.lo,elevM,aceil,fmtH))+"</span></div>").join("")+
+      ads.map(x=>"<div>"+esc(x.a.name)+" · Aerodrome circle<br><span style=\"font-size:12px\">"+esc(fmtD(x.d/1852))+" from the aerodrome. Check Part 101/102 requirements and get permission where needed.</span></div>").join("")+
       "<div style=\"font-size:12px\">Controlled airspace needs ATC clearance. Confirm with Airshare, AIP and your exposition.</div>";
   }
   if(html!==aspHtml){aspHtml=html;$("asp").className=cls;$("asp").innerHTML=html}
 }
-$("aspretry").onclick=()=>{$("aspst").textContent="Airspace data: loading…";loadAirspace()};
-document.querySelectorAll("#asplay input").forEach(i=>{i.onchange=()=>{aspShow[i.dataset.c]=i.checked;applyAsp()}});
+$("aspretry").onclick=()=>{$("aspst").textContent="Airspace data: loading…";$("adst").textContent="Aerodrome circles: loading…";loadAirspace();loadAerodromes()};
+(function(){
+  const box=$("asplay");
+  Object.keys(ASPCAT).forEach(c=>{const k=ASPCAT[c],l=document.createElement("label");
+    l.innerHTML='<input type="checkbox" data-c="'+c+'" checked><span class="sw" style="border-color:'+k.c+';background:'+k.f+'"></span>'+esc(k.n);box.appendChild(l)});
+  box.querySelectorAll("input").forEach(i=>{i.onchange=()=>{aspShow[i.dataset.c]=i.checked;applyAsp()}});
+  let dark=false;try{dark=localStorage.getItem("mapdark")==="1"}catch(e){}
+  const th=()=>{$("map").classList.toggle("dark",dark);$("mapth").textContent=dark?"☀️ Light map":"🌙 Dark map"};
+  $("mapth").onclick=()=>{dark=!dark;try{localStorage.setItem("mapdark",dark?"1":"0")}catch(e){}th()};th();
+})();
 function agl(a){
   if(a.gnd||a.alt==null||elevM==null)return null;
   return a.alt+(qnh-1013.25)*27-elevM*3.281;
@@ -462,6 +514,11 @@ function checkAlerts(list){
   }
   lastLevel=level;
 }
+$("cpbtn").onclick=async()=>{
+  const b=$("cpbtn"),t=lat.toFixed(5)+", "+lon.toFixed(5);
+  try{await navigator.clipboard.writeText(t);b.textContent="Copied "+t}catch(e){b.textContent=t}
+  setTimeout(()=>{b.textContent="Copy my position"},4000);
+};
 $("recbtn").onclick=()=>{recenter=true;if(map)map.setView([lat,lon],12)};
 $("placebtn").onclick=()=>{placeMode=!placeMode;$("placebtn").textContent=placeMode?"Tap the map to place yourself…":"📍 Place me on map";$("placebtn").style.outline=placeMode?"2px solid var(--ac)":""};
 $("aceil").value=aceilV;$("aceilu").value=aceilU;$("arad").value=aradV;$("aradu").value=aradU;
