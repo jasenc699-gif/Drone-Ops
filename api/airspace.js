@@ -1,13 +1,15 @@
 // Vercel function: fetches OpenAIP's public NZ airspace export and serves it with CORS + caching.
-const URLS = [
-  "https://s3.openaip.net/openaip-system-exports/nz_asp.geojson",
-  "https://storage.openaip.net/openaip-system-exports/nz_asp.geojson",
-  "https://storage.openaip.net/openaip-system-exports/nz_asp.json",
+const hosts = ["https://s3.openaip.net", "https://storage.openaip.net"];
+const urlsFor = (layer) => [
+  hosts[0] + "/openaip-system-exports/nz_" + layer + ".geojson",
+  hosts[1] + "/openaip-system-exports/nz_" + layer + ".geojson",
+  hosts[1] + "/openaip-system-exports/nz_" + layer + ".json",
 ];
 module.exports = async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   const errs = [];
-  for (const u of URLS) {
+  const layer = req.query.layer === "apt" ? "apt" : "asp";
+  for (const u of urlsFor(layer)) {
     try {
       const r = await fetch(u, { headers: { "User-Agent": "DroneOpsApp/1.0" } });
       if (r.ok) {
@@ -20,3 +22,4 @@ module.exports = async (req, res) => {
   }
   res.status(502).json({ error: "airspace download failed", details: errs });
 };
+
