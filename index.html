@@ -117,7 +117,7 @@ details.sub{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}de
 </div></div>
 
 <header id="topbar"><div class="wrap">
-  <div class="brandrow"><span class="brand">DRONE OPS<small>NZ</small></span><button class="icon" id="tb-gear" aria-label="Settings">⚙</button></div>
+  <div class="brandrow"><span class="brand">DRONE OPS<small>NZ</small></span><div style="display:flex;gap:8px"><button class="icon" id="tb-snd" aria-label="Sound alerts" title="Sound alerts">🔇</button><button class="icon" id="tb-gear" aria-label="Settings">⚙</button></div></div>
   <div class="tbrow">
     <div id="tb-ac">Waiting for aircraft data…</div>
     <button class="g" id="tb-snz" style="display:none;padding:8px 10px;font-size:13px">🔕 2 min</button>
@@ -353,7 +353,7 @@ async function weather(){
 
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const NMI=1852;let map=null,umark=null,ring=null,mk={},acs={},selHex=null,recenter=true,accC=null,gpsAcc=0,alertRing=null,ringState=-1;
-let elevM=null,qnh=1013.25,aceil=400,arad=2,soundOn=false,lastLevel=0,lastBeep=0,placeMode=false,snoozeUntil=0,adsbOK=false;
+let elevM=null,qnh=1013.25,aceil=400,arad=2,soundOn=true,lastLevel=0,lastBeep=0,placeMode=false,snoozeUntil=0,adsbOK=false;
 let aceilV=400,aceilU="ft",aradV=2,aradU="nm";
 try{aceilV=+localStorage.getItem("aceilV")||400;aceilU=localStorage.getItem("aceilU")==="m"?"m":"ft";aradV=+localStorage.getItem("aradV")||2;aradU=localStorage.getItem("aradU")==="m"?"m":"nm"}catch(e){}
 aceil=aceilU==="m"?aceilV/0.3048:aceilV;arad=aradU==="m"?aradV/1852:aradV;
@@ -628,7 +628,34 @@ $("wxbtn").onclick=async()=>{
   const b=$("wxbtn");if(!have){b.textContent="Waiting for location…";setTimeout(()=>{b.textContent="↻ Refresh weather"},2000);return}
   b.disabled=true;b.textContent="Refreshing…";await weather();b.disabled=false;b.textContent=wErr?"Failed – tap to retry":"↻ Refresh weather";
 };
-$("asnd").onclick=()=>{soundOn=!soundOn;$("asnd").textContent=soundOn?"🔔 Sound on":"🔇 Sound off";if(soundOn)beepN(1,800);checkAlerts(Object.values(acs))};
+let audioReady=false;
+try{if(localStorage.getItem("snd")==="0")soundOn=false}catch(e){}
+function sndUI(){
+  const t=$("tb-snd");
+  $("asnd").textContent=!soundOn?"🔇 Sound off":audioReady?"🔔 Sound on":"🔔 Sound on – tap the screen to enable";
+  t.textContent=!soundOn?"🔇":audioReady?"🔔":"🔔!";
+  t.style.background=!soundOn?"":audioReady?"var(--ok)":"var(--warn)";t.style.color=!soundOn?"":"#06121f";
+  t.title=!soundOn?"Sound off":audioReady?"Sound on":"Tap the screen once to enable sound";
+}
+function unlockAudio(){
+  try{
+    ac=ac||new (window.AudioContext||webkitAudioContext)();
+    const done=()=>{audioReady=ac.state==="running";sndUI()};
+    if(ac.state==="suspended")ac.resume().then(done).catch(done);else done();
+    const b=ac.createBuffer(1,1,22050),s=ac.createBufferSource();s.buffer=b;s.connect(ac.destination);s.start(0);
+  }catch(e){}
+}
+const toggleSound=()=>{
+  if(soundOn&&!audioReady){unlockAudio();return}
+  soundOn=!soundOn;try{localStorage.setItem("snd",soundOn?"1":"0")}catch(e){}
+  if(soundOn){unlockAudio();beepN(1,800)}
+  sndUI();checkAlerts(Object.values(acs));
+};
+$("asnd").onclick=$("tb-snd").onclick=toggleSound;
+["pointerdown","keydown","touchstart"].forEach(ev=>document.addEventListener(ev,e=>{
+  if(!audioReady&&soundOn&&!(e.target.closest&&e.target.closest("#tb-snd,#asnd")))unlockAudio();
+},{passive:true}));
+sndUI();
 function scope(list){
   let s='';
   [30,60,90].forEach((r,i)=>s+=`<circle r="${r}" fill="none" stroke="#2b3745"/><text x="${r-2}" y="-2" fill="#8a98a6" font-size="7" text-anchor="end">${(i+1)*5/3|0?((i+1)*5/3).toFixed(1):''}nm</text>`);
