@@ -6,66 +6,118 @@
 <title>Drone Ops MVP</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <style>
-:root{--bg:#0f1419;--card:#1a222b;--tx:#e8edf2;--mu:#8a98a6;--ok:#3ddc97;--warn:#ffb020;--bad:#ff5c5c;--ac:#4aa8ff}
+:root{--bg:#0e1318;--card:#171f27;--card2:#0f1419;--line:#26323e;--tx:#e8edf2;--mu:#8a98a6;--ok:#3ddc97;--warn:#ffb020;--bad:#ff5c5c;--ac:#4aa8ff}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--tx);font:16px system-ui,sans-serif;padding:env(safe-area-inset-top) 12px calc(env(safe-area-inset-bottom) + 12px)}
-h2{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--mu);margin:0 0 8px}
-.card{background:var(--card);border-radius:12px;padding:14px;margin:12px 0}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding-bottom:calc(env(safe-area-inset-bottom) + 16px)}
+.wrap{max-width:600px;margin:0 auto;padding:0 12px}
+h1{font-size:22px;margin:0 0 8px}
+h2{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--mu);margin:0;font-weight:700}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin:12px 0}
+.cardhead{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px}
 .row{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
-.big{font-size:28px;font-weight:600}
-.mu{color:var(--mu);font-size:13px}
-.stale{color:var(--warn)}
-button{background:var(--ac);color:#06121f;border:0;border-radius:10px;padding:12px 16px;font-size:16px;font-weight:600}
-button.g{background:#2b3745;color:var(--tx)}
-input{background:#0f1419;color:var(--tx);border:1px solid #2b3745;border-radius:8px;padding:10px;width:80px;font-size:16px}
+.btnrow{display:flex;gap:8px;margin-top:10px}.btnrow button{flex:1}
+.big{font-size:26px;font-weight:700}.mu{color:var(--mu);font-size:13px}.stale{color:var(--warn)}
+button{background:var(--ac);color:#06121f;border:0;border-radius:10px;padding:11px 16px;font-size:15px;font-weight:650;font-family:inherit}
+button:active{filter:brightness(.9)}
+button.g{background:#26323e;color:var(--tx)}button.mini{padding:6px 10px;font-size:13px}
+input{background:var(--card2);color:var(--tx);border:1px solid var(--line);border-radius:8px;padding:9px;width:80px;font-size:16px;font-family:inherit}
+select{background:var(--card2);color:var(--tx);border:1px solid var(--line);border-radius:8px;padding:8px;font-size:16px}
+input[type=checkbox]{width:auto;margin-right:4px}
+a{color:var(--ac)}
+details>summary{cursor:pointer;font-weight:650;list-style:none;display:flex;justify-content:space-between;align-items:center}
+details>summary::-webkit-details-marker{display:none}
+details>summary::after{content:"▾";color:var(--mu)}details[open]>summary::after{content:"▴"}
+details.det{padding:12px 14px}details[open].det>summary{margin-bottom:10px}
+details.sub{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}details.sub>summary{font-size:14px;color:var(--mu)}
+.set h3{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--mu);margin:16px 0 8px}
+.set h3:first-of-type{margin-top:0}
+.due{background:var(--bad)!important;animation:p 1s infinite}
+@keyframes p{50%{opacity:.65}}
+.foot{color:var(--mu);font-size:12px;margin:14px 0}
+/* intro modal */
+#intro{position:fixed;inset:0;z-index:3000;background:rgba(5,8,12,.88);display:flex;align-items:center;justify-content:center;padding:20px}
+.introbox{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px;max-width:440px}
+.introbox ul{padding-left:18px;margin:8px 0 16px;color:#c7d0d9}.introbox li{margin:6px 0}
+.introbox button{width:100%}
+/* top bar */
+#topbar{position:sticky;top:0;z-index:2000;padding-top:env(safe-area-inset-top);background:rgba(14,19,24,.94);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+#topbar .wrap{padding-top:6px;padding-bottom:8px}
+.brandrow{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.brand{font-weight:800;letter-spacing:.14em;font-size:13px}.brand small{color:var(--ok);letter-spacing:.2em;margin-left:4px}
+.icon{background:#26323e;color:var(--tx);width:36px;height:32px;padding:0;font-size:17px;border-radius:9px}
+.tbrow{display:flex;gap:8px;align-items:stretch}
+#tb-ac{flex:1;border-radius:10px;padding:10px 12px;font-weight:700;font-size:15px;background:var(--card);border-left:6px solid var(--mu);cursor:pointer}
+#tb-ac.ok{border-left-color:var(--ok)}#tb-ac.warn{background:#3a2c0c;color:var(--warn);border-left-color:var(--warn)}
+#tb-ac.bad{background:#40181a;color:#ff8a8a;border-left-color:var(--bad);animation:p 1s infinite}
+.tbchips{display:flex;gap:5px;margin-top:6px;flex-wrap:wrap}
+.tbchip{font-size:11.5px;padding:3px 9px;border-radius:99px;background:var(--card);border:1px solid var(--line);color:var(--mu);cursor:pointer;white-space:nowrap}
+.tbchip.ok{color:var(--ok)}.tbchip.warn{color:var(--warn)}.tbchip.bad{color:#ff8a8a}.tbchip.c{color:#8cc8ff}
+/* map */
+.mapcard{padding:10px}
+.searchrow{display:flex;gap:8px}.searchrow input{flex:1;width:auto;min-width:0}
+.posline{margin:6px 2px 8px;font-size:12px}
+.mapwrap{position:relative}
+#map{height:min(62vh,540px);min-height:330px;border-radius:12px;overflow:hidden;background:var(--card2)}
+.leaflet-container{font:inherit}.leaflet-control-attribution{font-size:10px}
+#map.dark .leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.95) contrast(.9)}
+.maptools{position:absolute;top:10px;right:10px;z-index:1100;display:flex;flex-direction:column;gap:8px}
+.maptools button{width:42px;height:42px;padding:0;font-size:18px;border-radius:50%;background:rgba(23,31,39,.94);color:var(--tx);border:1px solid var(--line);box-shadow:0 2px 8px rgba(0,0,0,.4)}
+#maphint{display:none;position:absolute;left:50%;top:10px;transform:translateX(-50%);z-index:1100;background:var(--ac);color:#06121f;font-weight:700;padding:8px 14px;border-radius:99px;font-size:13px;white-space:nowrap}
+#laypanel{display:none;position:absolute;left:10px;right:62px;bottom:28px;z-index:1100;background:rgba(23,31,39,.96);border:1px solid var(--line);border-radius:12px;padding:8px 10px}
+#laypanel.open{display:block}
+.leg{display:grid;grid-template-columns:1fr 1fr;gap:5px 8px;margin-top:6px}
+.leg label{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--tx);line-height:1.2}
+.leg input{margin:0}.sw{width:14px;height:14px;border-radius:50%;border:2px solid;flex:none}
 #scope{width:100%;max-width:420px;display:block;margin:0 auto}
-.due{background:var(--bad);animation:p 1s infinite}
-@keyframes p{50%{opacity:.6}}
-#disc{background:#2a2112;border:1px solid var(--warn);color:#ffd98a;font-size:13px}
-.chip{display:inline-block;padding:6px 12px;border-radius:99px;font-weight:700;font-size:14px;background:#2b3745;margin-bottom:10px}
-.chip.ok{background:#12382a;color:var(--ok)}.chip.warn{background:#3a2c0c;color:var(--warn)}.chip.bad{background:#40181a;color:var(--bad)}
-.wxmain{display:flex;align-items:center;gap:16px}.wxmain svg{width:120px;flex:none}
-.huge{font-size:46px;font-weight:700;line-height:1}.big2{font-size:22px;font-weight:600}
-.bars{margin-top:12px}.br{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:13px}
-.br span{width:56px;color:var(--mu)}.br b{width:34px;text-align:right}
-.tr{flex:1;height:10px;background:#0f1419;border-radius:6px;overflow:hidden}.tr i{display:block;height:100%;width:0;background:var(--ok);border-radius:6px;transition:width .4s}
-.tiles{display:flex;gap:10px}.tile{flex:1;background:#0f1419;border-radius:10px;padding:10px}
-select{background:#0f1419;color:var(--tx);border:1px solid #2b3745;border-radius:8px;padding:8px;font-size:16px}
-.aglbox{background:#0f1419;border-radius:10px;padding:10px;margin:10px 0}.aglrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:6px 0}
-#map{height:360px;border-radius:10px;overflow:hidden;background:#0f1419}
-.leaflet-container{font:inherit}#map.dark .leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.95) contrast(.9)}
+.acsum{margin:10px 2px 0;font-weight:650;font-size:14px}
 .pl{background:none;border:0;text-align:center;color:#fff;font-size:10px;text-shadow:0 0 3px #000,0 0 3px #000;line-height:1}
 .pl svg{display:block;margin:0 auto}.pl.sel svg{filter:drop-shadow(0 0 5px #fff)}
-.aci{background:#0f1419;border-radius:10px;padding:10px;margin-top:8px;font-size:14px}
-.aci .g2{display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;margin-top:6px}
+.aci{background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:12px;margin-top:10px;font-size:14px}
+#acinfo.mu{display:none}
+.aci .g2{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;margin-top:8px}
 .aci .em{background:var(--bad);color:#fff;border-radius:8px;padding:6px 8px;font-weight:700;margin:6px 0}
 .acrow{display:block;width:100%;text-align:left;margin-top:6px;font-size:14px;font-weight:400;padding:10px}.acrow.on{outline:2px solid var(--ac)}
 .me{background:none;border:0}
 .me .dot{position:absolute;left:15px;top:15px;cursor:grab;width:14px;height:14px;border-radius:50%;background:#4aa8ff;border:2px solid #fff;box-shadow:0 0 4px rgba(0,0,0,.5)}
 .me .pulse{position:absolute;left:10px;top:10px;width:24px;height:24px;border-radius:50%;background:rgba(74,168,255,.55);animation:pu 1.8s ease-out infinite}
 @keyframes pu{0%{transform:scale(.5);opacity:.9}100%{transform:scale(2.8);opacity:0}}
-.near{background:#0f1419;border-radius:10px;padding:10px;margin-bottom:8px;border-left:5px solid var(--mu)}
+.near{background:var(--card2);border-radius:10px;padding:10px;margin-bottom:8px;border-left:5px solid var(--mu)}
 .near.ok{border-left-color:var(--ok)}.near.warn{background:#3a2c0c;color:var(--warn);border-left-color:var(--warn)}
 .near.bad{background:#40181a;color:#ff8a8a;border-left-color:var(--bad);animation:p 1s infinite}
-.asp{background:#0f1419;border-radius:10px;padding:10px;margin-bottom:8px;border-left:5px solid var(--mu);font-size:14px}
+.asp{background:var(--card2);border-radius:10px;padding:10px;margin-bottom:8px;border-left:5px solid var(--mu);font-size:14px}
 .asp.ok{border-left-color:var(--ok)}.asp.c{background:#0f2538;color:#8cc8ff;border-left-color:var(--ac)}
 .asp.z{background:#2a1f3d;color:#cdb4ff;border-left-color:#b388ff}.asp.r{background:#40181a;color:#ff9a9a;border-left-color:var(--bad)}
-.asp div{margin-top:4px}input[type=checkbox]{width:auto;margin-right:4px}
-.leg{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;margin-top:8px}
-.leg label{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--tx)}
-.leg input{margin:0}.sw{width:14px;height:14px;border-radius:50%;border:2px solid;flex:none}
-#topbar{position:sticky;top:0;z-index:2000;margin:0 -12px 8px;padding:8px 12px;background:var(--bg);border-bottom:1px solid #2b3745}
-.tbrow{display:flex;gap:8px;align-items:stretch}
-#tb-ac{flex:1;border-radius:10px;padding:10px 12px;font-weight:700;font-size:16px;background:#1a222b;border-left:6px solid var(--mu);cursor:pointer}
-#tb-ac.ok{border-left-color:var(--ok)}#tb-ac.warn{background:#3a2c0c;color:var(--warn);border-left-color:var(--warn)}
-#tb-ac.bad{background:#40181a;color:#ff8a8a;border-left-color:var(--bad);animation:p 1s infinite}
-.tbchips{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
-.tbchip{font-size:12px;padding:4px 10px;border-radius:99px;background:#1a222b;color:var(--mu);cursor:pointer}
-.tbchip.ok{color:var(--ok)}.tbchip.warn{color:var(--warn)}.tbchip.bad{color:#ff8a8a}.tbchip.c{color:#8cc8ff}
+.asp div{margin-top:4px}
+/* weather */
+.verdictrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.chip{display:inline-block;padding:6px 12px;border-radius:99px;font-weight:700;font-size:13px;background:#26323e}
+.chip.ok{background:#12382a;color:var(--ok)}.chip.warn{background:#3a2c0c;color:var(--warn)}.chip.bad{background:#40181a;color:var(--bad)}
+.wxmain{display:flex;align-items:center;gap:16px}.wxmain svg{width:110px;flex:none}
+.huge{font-size:44px;font-weight:750;line-height:1}.big2{font-size:21px;font-weight:650}
+.bars{margin-top:12px}.br{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:13px}
+.br span{width:56px;color:var(--mu)}.br b{width:34px;text-align:right}
+.tr{flex:1;height:9px;background:var(--card2);border-radius:6px;overflow:hidden}.tr i{display:block;height:100%;width:0;background:var(--ok);border-radius:6px;transition:width .4s}
+.tiles{display:flex;gap:10px;margin-top:10px}.tile{flex:1;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:10px}
+.aglbox{background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:10px;margin:10px 0}.aglrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:6px 0}
+.card,#det,#setd{scroll-margin-top:170px}
 </style>
+
 </head>
 <body>
-<div id="topbar">
+<div id="intro"><div class="introbox">
+  <h1>Before you fly</h1>
+  <div class="mu" style="font-size:14px">Drone Ops is a situational awareness aid. It is not a substitute for your exposition, airspace authorisation or a visual lookout.</div>
+  <ul>
+    <li>Many aircraft (ag, gliders, some helicopters) don't transmit ADS-B. "No aircraft seen" is not "clear".</li>
+    <li>Aircraft heights are estimates. Allow ±200 ft.</li>
+    <li>Airspace data is community-maintained. Confirm with Airshare and AIP New Zealand.</li>
+  </ul>
+  <button id="introbtn">I understand</button>
+</div></div>
+
+<header id="topbar"><div class="wrap">
+  <div class="brandrow"><span class="brand">DRONE OPS<small>NZ</small></span><button class="icon" id="tb-gear" aria-label="Settings">⚙</button></div>
   <div class="tbrow">
     <div id="tb-ac">Waiting for aircraft data…</div>
     <button class="g" id="tb-snz" style="display:none;padding:8px 10px;font-size:13px">🔕 2 min</button>
@@ -73,27 +125,41 @@ select{background:#0f1419;color:var(--tx);border:1px solid #2b3745;border-radius
   <div class="tbchips">
     <span class="tbchip" id="tb-asp">Zones: …</span>
     <span class="tbchip" id="tb-wx">Wind: …</span>
+    <span class="tbchip" id="tb-adsb">ADS-B …</span>
+    <span class="tbchip" id="tb-pos">GPS …</span>
     <span class="tbchip" id="tb-tm" style="display:none"></span>
-    <span class="tbchip" id="tb-awake">☀ Screen: …</span>
+    <span class="tbchip" id="tb-awake">☀ …</span>
   </div>
-</div>
-<div class="card" id="disc">Situational awareness aid only. Not a substitute for your exposition, airspace authorisation, or visual lookout. Many aircraft (ag, gliders, some helicopters) do not transmit ADS-B. Check CAA Part 101/102 for current rules.</div>
+</div></header>
 
-<div class="card">
-  <h2>Position</h2>
-  <div id="pos" class="mu">Locating…</div>
-  <div class="row" style="margin-top:8px;flex-wrap:nowrap">
-    <input id="q" type="search" placeholder="Search address or place (NZ)" style="flex:1;width:auto;min-width:0">
-    <button id="qbtn" style="padding:10px 14px">Search</button>
+<main class="wrap">
+
+<section class="card mapcard">
+  <div class="searchrow">
+    <input id="q" type="search" placeholder="Search address or place (NZ)">
+    <button id="qbtn">Search</button>
   </div>
   <div id="qres" class="mu" style="margin-top:6px"></div>
-  <button class="g" id="gpsbtn" style="margin-top:8px;padding:8px 12px;font-size:14px">Retry GPS</button>
-  <button class="g" id="manbtn" style="margin-top:8px;padding:8px 12px;font-size:14px">Enter location</button>
-</div>
+  <div id="pos" class="mu posline">Locating…</div>
+  <div class="mapwrap">
+    <div id="map"></div>
+    <div class="maptools">
+      <button id="recbtn" aria-label="Recenter on me" title="Recenter on me">⌖</button>
+      <button id="placebtn" aria-label="Place me on map" title="Place me on map">📍</button>
+      <button id="laybtn" aria-label="Map layers" title="Map layers">🗺</button>
+      <button id="mapth" aria-label="Map style" title="Map style">🌙</button>
+    </div>
+    <div id="maphint">Tap the map to place yourself</div>
+    <div id="laypanel"><div class="mu">Map layers</div><div class="leg" id="asplay"></div></div>
+    <svg id="scope" viewBox="-110 -110 220 220" style="display:none"></svg>
+  </div>
+  <div id="acinfo" class="aci mu">Tap an aircraft for details.</div>
+  <div id="acsum" class="acsum">–</div>
+</section>
 
-<div class="card" id="wxcard">
-  <h2>Wind &amp; weather</h2>
-  <div id="verdict" class="chip">Waiting for data</div>
+<section class="card" id="wxcard">
+  <div class="cardhead"><h2>Wind &amp; weather</h2><button class="g mini" id="wxbtn">↻ Refresh weather</button></div>
+  <div class="verdictrow"><div id="verdict" class="chip">Waiting for data</div><span class="mu" id="wage">No data yet</span></div>
   <div class="wxmain">
     <svg id="compass" viewBox="-60 -60 120 120">
       <circle r="50" fill="none" stroke="#2b3745" stroke-width="2"/>
@@ -107,7 +173,7 @@ select{background:#0f1419;color:var(--tx);border:1px solid #2b3745;border-radius
     <div>
       <div><span class="huge" id="w10">–</span><span class="mu"> km/h</span></div>
       <div class="mu">wind at 10 m, from <b id="d10">–</b></div>
-      <div style="margin-top:8px"><span class="big" id="gust">–</span><span class="mu"> km/h gusts</span></div>
+      <div style="margin-top:8px"><span class="big2" id="gust">–</span><span class="mu"> km/h gusts</span></div>
     </div>
   </div>
   <div class="bars">
@@ -116,61 +182,60 @@ select{background:#0f1419;color:var(--tx);border:1px solid #2b3745;border-radius
     <div class="br"><span>120 m</span><div class="tr"><i id="b120"></i></div><b id="v120">–</b></div>
     <div class="br"><span id="lblAgl">400 ft</span><div class="tr"><i id="bagl"></i></div><b id="vagl">–</b></div>
   </div>
-  <div class="mu" style="margin:4px 0 10px">Bars show wind against your limit (right edge). 120 m wind is from <b id="d120">–</b>.</div>
+  <div class="mu" style="margin-top:6px;font-size:12px">Bars: wind against your limit (right edge). 120 m wind from <b id="d120">–</b>.</div>
   <div class="tiles">
     <div class="tile"><div class="mu">Rain</div><div class="big2" id="rain">–</div></div>
     <div class="tile"><div class="mu">Temp</div><div class="big2" id="temp">–</div></div>
   </div>
-  <div class="aglbox"><div class="mu">Wind at a height above ground (AGL)</div>
-    <div class="aglrow"><input id="agl" type="number" min="0" max="600" value="400" style="width:84px"><select id="aglu"><option value="ft">ft</option><option value="m">m</option></select>
-    <div><span class="big" id="aglv">–</span><span class="mu"> km/h from <b id="agld">–</b></span></div></div>
-    <div class="mu" style="font-size:12px">Estimated from model winds at 10, 80, 120 and 180 m. Heights above 180 m (about 590 ft) aren't available. Gusts shown are at 10 m; gusts higher up are usually stronger.</div></div>
-  <label class="mu" style="display:block;margin-top:10px">Your aircraft wind limit <input id="lim" type="number" min="5" max="100" value="30" style="width:64px;padding:6px"> km/h</label>
-  <div class="mu" style="font-size:12px">Indicative only. Use your aircraft's limits and your exposition.</div>
-  <div class="mu" id="wage" style="margin-top:6px">No data yet</div>
-  <button class="g" id="wxbtn" style="padding:8px 12px;font-size:14px;margin-top:6px">↻ Refresh weather</button>
-</div>
+  <details class="sub"><summary>Wind at height &amp; your limit</summary>
+    <div class="aglbox"><div class="mu">Wind at a height above ground (AGL)</div>
+      <div class="aglrow"><input id="agl" type="number" min="0" max="600" value="400" style="width:84px"><select id="aglu"><option value="ft">ft</option><option value="m">m</option></select>
+      <div><span class="big2" id="aglv">–</span><span class="mu"> km/h from <b id="agld">–</b></span></div></div>
+      <div class="mu" style="font-size:12px">Estimated from model winds at 10, 80, 120 and 180 m. Heights above 180 m (about 590 ft) aren't available. Gusts shown are at 10 m; gusts higher up are usually stronger.</div></div>
+    <label class="mu">Your aircraft wind limit <input id="lim" type="number" min="5" max="100" value="30" style="width:64px;padding:6px"> km/h</label>
+    <div class="mu" style="font-size:12px;margin-top:4px">Indicative only. Use your aircraft's limits and your exposition.</div>
+  </details>
+</section>
 
-<div class="card">
-  <h2>ADS-B (5 nm)</h2>
-  <div id="asp" class="asp mu">Airspace: waiting for location…</div>
-  <div id="near" class="near mu">Waiting for aircraft data…</div>
-  <div class="aglrow">
-    <label class="mu">Ceiling <input id="aceil" type="number" min="1" value="400" style="width:72px;padding:6px"> <select id="aceilu" style="padding:6px"><option value="ft">ft</option><option value="m">m</option></select> AGL</label>
-    <label class="mu">Radius <input id="arad" type="number" min="0.1" step="any" value="2" style="width:72px;padding:6px"> <select id="aradu" style="padding:6px"><option value="nm">nm</option><option value="m">m</option></select></label>
-    <button class="g" id="asnd" style="padding:8px 12px;font-size:14px">🔇 Sound off</button>
-  </div>
-  <div class="mu" id="alerthint" style="font-size:12px;margin-bottom:8px"></div>
-  <div id="map"></div>
-  <div class="leg" id="asplay"></div>
-  <div class="mu" id="aspst" style="font-size:12px">Airspace data: loading…</div>
-  <div class="mu" id="adst" style="font-size:12px">Aerodrome circles: loading…</div>
-  <button class="g" id="aspretry" style="padding:6px 10px;font-size:13px;margin:4px 0">Reload airspace</button>
-  <div class="mu" style="font-size:12px">Airspace data: <a href="https://www.openaip.net" style="color:var(--ac)">OpenAIP</a> (CC BY-NC 4.0). Zone colours follow the Airshare legend, but this is not Airshare data: community-maintained, not official, may be out of date, and has no NOTAM or other-authority (land owner) areas. Check Airshare and AIP New Zealand before flying.</div>
-  <svg id="scope" viewBox="-110 -110 220 220" style="display:none"></svg>
-  <button class="g" id="recbtn" style="margin-top:8px;padding:8px 12px;font-size:14px">Recenter on me</button>
-  <button class="g" id="placebtn" style="margin-top:8px;padding:8px 12px;font-size:14px">📍 Place me on map</button>
-  <button class="g" id="mapth" style="margin-top:8px;padding:8px 12px;font-size:14px">🌙 Dark map</button>
-  <div id="acinfo" class="aci mu">Tap an aircraft on the map or in the list for details.</div>
-  <div id="acsum" style="margin-top:8px;font-weight:600">–</div>
-  <div id="aclist"></div>
-  <div class="mu" style="font-size:12px;margin-top:6px">Aircraft altitudes are barometric (above sea level), not above ground. Compare with your site elevation. Red = below 1,500 ft.</div>
-  <div class="mu" id="aage" style="margin-top:6px">No data yet</div>
-  <button class="g" id="pxbtn" style="margin-top:8px;padding:8px 12px;font-size:14px">Set ADS-B proxy URL</button>
-</div>
-
-<div class="card" id="tcard">
-  <h2>Radio call timer</h2>
-  <div class="row" style="align-items:center">
-    <label>Every <input id="mins" type="number" min="1" value="10"> min</label>
-    <div class="big" id="cd">--:--</div>
-  </div>
-  <div class="row" style="margin-top:10px">
+<section class="card" id="tcard">
+  <div class="cardhead"><h2>Radio call timer</h2><div class="big" id="cd">--:--</div></div>
+  <label class="mu">Every <input id="mins" type="number" min="1" value="10"> min</label>
+  <div class="btnrow">
     <button id="tstart">Start</button>
     <button class="g" id="tack">Call made</button>
     <button class="g" id="tstop">Stop</button>
   </div>
-</div>
+</section>
+
+<details class="card det" id="det"><summary>Aircraft &amp; zone details</summary>
+  <div id="asp" class="asp mu">Airspace: waiting for location…</div>
+  <div id="near" class="near mu">Waiting for aircraft data…</div>
+  <div id="aclist"></div>
+  <div class="mu" style="font-size:12px;margin-top:8px">Aircraft altitudes are barometric (above sea level), not above ground. Compare with your site elevation. Red = below 1,500 ft.</div>
+</details>
+
+<details class="card det set" id="setd"><summary>Settings &amp; data</summary>
+  <h3>Position</h3>
+  <div class="btnrow"><button class="g" id="gpsbtn">Retry GPS</button><button class="g" id="manbtn">Enter location</button></div>
+  <h3>Aircraft alerts</h3>
+  <div class="aglrow">
+    <label class="mu">Ceiling <input id="aceil" type="number" min="1" value="400" style="width:72px;padding:6px"> <select id="aceilu" style="padding:6px"><option value="ft">ft</option><option value="m">m</option></select> AGL</label>
+    <label class="mu">Radius <input id="arad" type="number" min="0.1" step="any" value="2" style="width:72px;padding:6px"> <select id="aradu" style="padding:6px"><option value="nm">nm</option><option value="m">m</option></select></label>
+  </div>
+  <button class="g" id="asnd">🔇 Sound off</button>
+  <div class="mu" id="alerthint" style="font-size:12px;margin-top:8px"></div>
+  <h3>Data status</h3>
+  <div class="mu" id="aage">No data yet</div>
+  <div class="mu" id="aspst" style="font-size:12px;margin-top:6px">Airspace data: loading…</div>
+  <div class="mu" id="adst" style="font-size:12px">Aerodrome circles: loading…</div>
+  <div class="btnrow"><button class="g mini" id="aspretry">Reload airspace</button><button class="g mini" id="pxbtn">Set ADS-B proxy URL</button></div>
+  <h3>About the data</h3>
+  <div class="mu" style="font-size:12px">Airspace: <a href="https://www.openaip.net">OpenAIP</a> (CC BY-NC 4.0). Zone colours follow the Airshare legend, but this is not Airshare data: it is community-maintained, not official, may be out of date, and has no NOTAM or other-authority (landowner) areas. Weather: Open-Meteo. Aircraft: community ADS-B feeds. Check Airshare and AIP New Zealand before flying.</div>
+</details>
+
+<div id="disc" class="foot">Situational awareness aid only. Not a substitute for your exposition, airspace authorisation or visual lookout. Check CAA Part 101/102 for current rules.</div>
+
+</main>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
@@ -190,21 +255,21 @@ function startGPS(){
   if(gpsId!==null)navigator.geolocation.clearWatch(gpsId);
   $("pos").textContent="Waiting for GPS fix…";have=false;
   gpsId=navigator.geolocation.watchPosition(p=>{
-    const first=!have;gpsAcc=p.coords.accuracy;lat=p.coords.latitude;lon=p.coords.longitude;have=true;gpsT=Date.now();
+    const first=!have;gpsAcc=p.coords.accuracy;lat=p.coords.latitude;lon=p.coords.longitude;have=true;gpsT=Date.now();$("tb-pos").textContent="GPS ±"+Math.round(p.coords.accuracy)+" m";$("tb-pos").className="tbchip "+(p.coords.accuracy>50?"warn":"ok");
     $("pos").textContent="GPS: "+lat.toFixed(5)+", "+lon.toFixed(5)+" (±"+Math.round(p.coords.accuracy)+" m)"+
       (p.coords.altitude!=null?" · alt "+Math.round(p.coords.altitude)+" m":"");
     initMap();updateUser();if(first){weather();adsb()}
   },e=>{
-    const m={1:"Location permission denied. Enable location for this browser in phone settings, then tap Retry.",
-      2:"GPS position unavailable. Move to open sky and tap Retry.",3:"GPS timed out. Tap Retry."}[e.code]||"GPS error.";
+    const m={1:"Location permission denied. Enable location for this browser in phone settings, then Settings ⚙ → Retry GPS.",
+      2:"GPS position unavailable. Move to open sky and tap Retry.",3:"GPS timed out. Settings ⚙ → Retry GPS."}[e.code]||"GPS error.";$("tb-pos").textContent="No GPS";$("tb-pos").className="tbchip bad";
     $("pos").innerHTML=m+(location.protocol==="file:"?" <br>(Some browsers block GPS on local files – host the page over HTTPS.)":"");
   },{enableHighAccuracy:true,maximumAge:5000,timeout:20000});
 }
 $("gpsbtn").onclick=startGPS;
 function setLoc(la,lo,label,keep){
   if(gpsId!==null){navigator.geolocation.clearWatch(gpsId);gpsId=null}
-  lat=la;lon=lo;have=true;recenter=!keep;gpsAcc=0;elevM=null;wT=0;aT=0;wErr="";aErr="";
-  $("pos").textContent=label+": "+lat.toFixed(5)+", "+lon.toFixed(5)+" (GPS off – tap Retry GPS to resume)";
+  lat=la;lon=lo;have=true;recenter=!keep;gpsAcc=0;elevM=null;$("tb-pos").textContent="Manual position";$("tb-pos").className="tbchip warn";wT=0;aT=0;wErr="";aErr="";
+  $("pos").textContent=label+": "+lat.toFixed(5)+", "+lon.toFixed(5)+" (GPS off – Settings ⚙ → Retry GPS to resume)";
   initMap();updateUser();
   weather();adsb();
 }
@@ -302,12 +367,13 @@ function initMap(){
   if(typeof L==="undefined"){$("map").style.display="none";$("scope").style.display="block";return}
   map=L.map("map").setView([lat,lon],12);
   L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:18,attribution:"© OpenStreetMap"}).addTo(map);
+  map.attributionControl.addAttribution('Airspace © <a href="https://www.openaip.net">OpenAIP</a> CC BY-NC');
   accC=L.circle([lat,lon],{radius:0,stroke:false,fillColor:"#4aa8ff",fillOpacity:.12}).addTo(map);
   umark=L.marker([lat,lon],{icon:L.divIcon({className:"me",html:'<div class="pulse"></div><div class="dot"></div>',iconSize:[44,44],iconAnchor:[22,22]}),draggable:true,keyboard:false,zIndexOffset:1000}).addTo(map);
   ring=L.circle([lat,lon],{radius:5*NMI,color:"#5b7a99",weight:1,fill:false,dashArray:"4 4"}).addTo(map);
   alertRing=L.circle([lat,lon],{radius:arad*NMI,color:"#8a98a6",weight:4,fill:false,dashArray:"1 9",lineCap:"round",interactive:false}).addTo(map);
   map.on("dragstart",()=>{recenter=false});
-  map.on("click",e=>{if(!placeMode)return;placeMode=false;$("placebtn").textContent="📍 Place me on map";$("placebtn").style.outline="";setLoc(e.latlng.lat,e.latlng.lng,"MAP",true)});
+  map.on("click",e=>{if(!placeMode)return;placeMode=false;$("maphint").style.display="none";$("placebtn").style.outline="";setLoc(e.latlng.lat,e.latlng.lng,"MAP",true)});
   umark.on("dragend",()=>{const p=umark.getLatLng();setLoc(p.lat,p.lng,"MAP",true)});
   if(aspFeats.length||adFeats.length)buildAspLayers();
 }
@@ -499,7 +565,7 @@ $("aspretry").onclick=()=>{$("aspst").textContent="Airspace data: loading…";$(
     l.innerHTML='<input type="checkbox" data-c="'+c+'" checked><span class="sw" style="border-color:'+k.c+';background:'+k.f+'"></span>'+esc(k.n);box.appendChild(l)});
   box.querySelectorAll("input").forEach(i=>{i.onchange=()=>{aspShow[i.dataset.c]=i.checked;applyAsp()}});
   let dark=false;try{dark=localStorage.getItem("mapdark")==="1"}catch(e){}
-  const th=()=>{$("map").classList.toggle("dark",dark);$("mapth").textContent=dark?"☀️ Light map":"🌙 Dark map"};
+  const th=()=>{$("map").classList.toggle("dark",dark);$("mapth").textContent=dark?"☀️":"🌙"};
   $("mapth").onclick=()=>{dark=!dark;try{localStorage.setItem("mapdark",dark?"1":"0")}catch(e){}th()};th();
 })();
 function agl(a){
@@ -543,8 +609,9 @@ function checkAlerts(list){
   }
   lastLevel=level;
 }
+$("laybtn").onclick=()=>$("laypanel").classList.toggle("open");
 $("recbtn").onclick=()=>{recenter=true;if(map)map.setView([lat,lon],12)};
-$("placebtn").onclick=()=>{placeMode=!placeMode;$("placebtn").textContent=placeMode?"Tap the map to place yourself…":"📍 Place me on map";$("placebtn").style.outline=placeMode?"2px solid var(--ac)":""};
+$("placebtn").onclick=()=>{placeMode=!placeMode;$("maphint").style.display=placeMode?"block":"none";$("placebtn").style.outline=placeMode?"2px solid var(--ac)":""};
 $("aceil").value=aceilV;$("aceilu").value=aceilU;$("arad").value=aradV;$("aradu").value=aradU;
 function hint(){$("alerthint").textContent="Red alert: an aircraft inside the radius at or below ceiling + "+fmtH(200)+". Amber: up to ceiling + "+fmtH(600)+", or height unknown. Tap Sound to enable tones. Dotted circle = alert radius: green clear, amber aircraft inside, red at your height, grey no ADS-B."}
 function lims(){
@@ -626,16 +693,18 @@ setInterval(()=>{
       if(window.Notification&&Notification.permission==="granted")new Notification("Radio call due")}
     else{const s=Math.ceil(r/1000);$("cd").textContent=String(s/60|0).padStart(2,"0")+":"+String(s%60).padStart(2,"0")}}
   const tc=$("tb-tm");tc.style.display=running?"":"none";tc.textContent="📻 "+$("cd").textContent;tc.className="tbchip"+(due?" bad":" c");
+  {const s=ago(aT),c=$("tb-adsb");c.textContent=s===null?(aErr?"ADS-B error":"ADS-B …"):"ADS-B "+s+"s";c.className="tbchip "+((aErr&&(s===null||s>15))||(s!==null&&s>60)?"bad":s!==null&&s>30?"warn":"ok")}
   agetxt($("wage"),"Weather",wT,wErr);agetxt($("aage"),"ADS-B"+(aSrc?" ("+aSrc+")":""),aT,aErr);
 },1000);
 
 $("tb-snz").onclick=()=>{snoozeUntil=Date.now()+120000;$("tb-snz").textContent="🔕 Snoozed"};
-$("tb-ac").onclick=()=>$("near").scrollIntoView({behavior:"smooth",block:"center"});
-$("tb-asp").onclick=()=>$("asp").scrollIntoView({behavior:"smooth",block:"center"});
+$("tb-ac").onclick=()=>{$("det").open=true;$("near").scrollIntoView({behavior:"smooth",block:"center"})};
+$("tb-asp").onclick=()=>{$("det").open=true;$("asp").scrollIntoView({behavior:"smooth",block:"center"})};
+$("tb-gear").onclick=$("tb-pos").onclick=$("tb-adsb").onclick=()=>{$("setd").open=true;$("setd").scrollIntoView({behavior:"smooth",block:"start"})};
 $("tb-wx").onclick=()=>$("wxcard").scrollIntoView({behavior:"smooth",block:"start"});
 $("tb-tm").onclick=()=>$("tcard").scrollIntoView({behavior:"smooth",block:"center"});
 let wl=null,wlWant=true;
-function setAwake(on){const c=$("tb-awake");c.textContent=on?"☀ Screen stays on":(wlWant?"🌙 Screen may lock":"🌙 Screen lock allowed");c.className="tbchip"+(on?" ok":" warn")}
+function setAwake(on){const c=$("tb-awake");c.textContent=on?"☀ Screen on":(wlWant?"🌙 May lock":"🌙 Lock allowed");c.className="tbchip"+(on?" ok":" warn")}
 async function wake(){
   if(!("wakeLock" in navigator)){setAwake(false);return}
   try{wl=await navigator.wakeLock.request("screen");wl.addEventListener("release",()=>{wl=null;setAwake(false)});setAwake(true)}catch(e){wl=null;setAwake(false)}
@@ -644,6 +713,10 @@ $("tb-awake").onclick=()=>{wlWant=!wlWant;if(wlWant)wake();else{if(wl)wl.release
 document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&wlWant&&!wl)wake()});
 document.addEventListener("click",()=>{if(wlWant&&!wl)wake()});
 wake();
+(function(){let ok=false;try{ok=localStorage.getItem("ack")==="1"}catch(e){}
+  if(ok)$("intro").style.display="none";
+  $("introbtn").onclick=()=>{try{localStorage.setItem("ack","1")}catch(e){}$("intro").style.display="none"};
+})();
 setInterval(()=>{if(have)weather()},300000);setInterval(()=>{if(have)adsb()},5000);
 </script>
 </body>
