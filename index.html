@@ -353,6 +353,7 @@ async function weather(){
 
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const NMI=1852;let map=null,umark=null,ring=null,mk={},acs={},selHex=null,recenter=true,accC=null,gpsAcc=0,alertRing=null,ringState=-1;
+let userList=[],extraList=[],viewKey="",viewAt=0,viewBusy=false,viewTmr=null;
 let elevM=null,qnh=1013.25,aceil=400,arad=2,soundOn=true,lastLevel=0,lastBeep=0,placeMode=false,snoozeUntil=0,adsbOK=false;
 let aceilV=400,aceilU="ft",aradV=2,aradU="nm";
 try{aceilV=+localStorage.getItem("aceilV")||400;aceilU=localStorage.getItem("aceilU")==="m"?"m":"ft";aradV=+localStorage.getItem("aradV")||2;aradU=localStorage.getItem("aradU")==="m"?"m":"nm"}catch(e){}
@@ -373,6 +374,7 @@ function initMap(){
   ring=L.circle([lat,lon],{radius:5*NMI,color:"#5b7a99",weight:1,fill:false,dashArray:"4 4"}).addTo(map);
   alertRing=L.circle([lat,lon],{radius:arad*NMI,color:"#8a98a6",weight:4,fill:false,dashArray:"1 9",lineCap:"round",interactive:false}).addTo(map);
   map.on("dragstart",()=>{recenter=false});
+  map.on("moveend",()=>{clearTimeout(viewTmr);viewTmr=setTimeout(()=>adsbView(true),700)});
   map.on("click",e=>{if(!placeMode)return;placeMode=false;$("maphint").style.display="none";$("placebtn").style.outline="";setLoc(e.latlng.lat,e.latlng.lng,"MAP",true)});
   umark.on("dragend",()=>{const p=umark.getLatLng();setLoc(p.lat,p.lng,"MAP",true)});
   if(aspFeats.length||adFeats.length)buildAspLayers();
@@ -391,7 +393,7 @@ function icon(a,sel){
 function select(hex){
   selHex=(hex===selHex)?null:hex;
   if(selHex&&map&&acs[selHex]){recenter=false;map.panTo([acs[selHex].lat,acs[selHex].lon])}
-  renderMap(Object.values(acs));
+  renderMap(userList);
 }
 function showInfo(){
   const el=$("acinfo"),a=acs[selHex];
@@ -418,10 +420,12 @@ function renderList(list){
   });
 }
 function renderMap(list){
-  acs={};list.forEach(a=>acs[a.hex]=a);
+  userList=list;
+  const shown=list.concat(extraList.filter(e=>!list.some(a=>a.hex===e.hex)));
+  acs={};shown.forEach(a=>acs[a.hex]=a);
   if(map){
     Object.keys(mk).forEach(k=>{if(!acs[k]){map.removeLayer(mk[k]);delete mk[k]}});
-    list.forEach(a=>{
+    shown.forEach(a=>{
       const sel=a.hex===selHex,key=Math.round(a.trk||0)+"|"+a.col+"|"+sel+"|"+a.name;
       if(mk[a.hex]){mk[a.hex].setLatLng([a.lat,a.lon]);if(mk[a.hex]._k!==key){mk[a.hex].setIcon(icon(a,sel));mk[a.hex]._k=key}}
       else{const m=L.marker([a.lat,a.lon],{icon:icon(a,sel),keyboard:false}).on("click",()=>select(a.hex)).addTo(map);m._k=key;mk[a.hex]=m}
@@ -617,7 +621,7 @@ function hint(){$("alerthint").textContent="Red alert: an aircraft inside the ra
 function lims(){
   aceil=aceilU==="m"?aceilV/0.3048:aceilV;arad=aradU==="m"?aradV/1852:aradV;
   try{localStorage.setItem("aceilV",aceilV);localStorage.setItem("aceilU",aceilU);localStorage.setItem("aradV",aradV);localStorage.setItem("aradU",aradU)}catch(e){}
-  hint();setRing(ringState);checkAlerts(Object.values(acs));aspHtml="";checkAirspace();renderList(Object.values(acs));showInfo();
+  hint();setRing(ringState);checkAlerts(userList);aspHtml="";checkAirspace();renderList(userList);showInfo();
 }
 $("aceil").onchange=()=>{aceilV=Math.max(1,+$("aceil").value||(aceilU==="m"?120:400));lims()};
 $("aradu").onchange=()=>{const n=$("aradu").value;if(n===aradU)return;aradV=n==="m"?Math.max(50,Math.round(arad*1852/50)*50):Math.max(.1,Math.round(arad*10)/10);aradU=n;$("arad").value=aradV;lims()};
@@ -649,7 +653,7 @@ const toggleSound=()=>{
   if(soundOn&&!audioReady){unlockAudio();return}
   soundOn=!soundOn;try{localStorage.setItem("snd",soundOn?"1":"0")}catch(e){}
   if(soundOn){unlockAudio();beepN(1,800)}
-  sndUI();checkAlerts(Object.values(acs));
+  sndUI();checkAlerts(userList);
 };
 $("asnd").onclick=$("tb-snd").onclick=toggleSound;
 ["pointerdown","keydown","touchstart"].forEach(ev=>document.addEventListener(ev,e=>{
@@ -670,36 +674,61 @@ function scope(list){
   $("scope").innerHTML=s;
 }
 
-async function adsb(){
-  const urls=[["adsb.lol","https://api.adsb.lol/v2/lat/"+lat+"/lon/"+lon+"/dist/5"],
-    ["adsb.fi","https://opendata.adsb.fi/api/v2/lat/"+lat+"/lon/"+lon+"/dist/5"],
-    ["airplanes.live","https://api.airplanes.live/v2/point/"+lat+"/"+lon+"/5"],
-    ["adsb.lol(alt)","https://api.adsb.lol/v2/point/"+lat+"/"+lon+"/5"]];
+async function fetchAircraft(la,lo,nm){
+  const urls=[["adsb.lol","https://api.adsb.lol/v2/lat/"+la+"/lon/"+lo+"/dist/"+nm],
+    ["adsb.fi","https://opendata.adsb.fi/api/v2/lat/"+la+"/lon/"+lo+"/dist/"+nm],
+    ["airplanes.live","https://api.airplanes.live/v2/point/"+la+"/"+lo+"/"+nm],
+    ["adsb.lol(alt)","https://api.adsb.lol/v2/point/"+la+"/"+lo+"/"+nm]];
   const errs=[];
-  if(!proxy&&/^https?:/.test(location.protocol))urls.unshift(["same-origin",location.origin+"/adsb?lat="+lat+"&lon="+lon+"&dist=5"]);
-  if(proxy){urls.length=0;urls.push(["proxy",proxy+(proxy.includes("?")?"&":"?")+"lat="+lat+"&lon="+lon+"&dist=5"])}
+  if(!proxy&&/^https?:/.test(location.protocol))urls.unshift(["same-origin",location.origin+"/adsb?lat="+la+"&lon="+lo+"&dist="+nm]);
+  if(proxy){urls.length=0;urls.push(["proxy",proxy+(proxy.includes("?")?"&":"?")+"lat="+la+"&lon="+lo+"&dist="+nm])}
   for(const [name,url] of urls){
     try{
       const c=new AbortController(),to=setTimeout(()=>c.abort(),8000);
       const res=await fetch(url,{signal:c.signal});clearTimeout(to);
       if(!res.ok){let m="HTTP "+res.status;try{const j=await res.json();if(j.details)m+=" ["+j.details.join("; ")+"]"}catch(e2){}throw new Error(m)}
-      const d=await res.json();
+      const d=await res.json(),rawN=(d.ac||d.aircraft||[]).length;
       const list=(d.ac||d.aircraft||[]).filter(a=>a.lat!=null&&a.lon!=null).map(a=>{
         const gnd=a.alt_baro==="ground",alt=gnd?0:(typeof a.alt_baro==="number"?a.alt_baro:null);
         return {hex:String(a.hex||(a.lat+","+a.lon)).toLowerCase(),lat:a.lat,lon:a.lon,trk:a.track,alt,gnd,agm:a.alt_geom,
           vr:a.baro_rate!=null?a.baro_rate:a.geom_rate,gs:a.gs,sq:a.squawk,type:a.t,reg:a.r,seen:a.seen,
           name:String(a.flight||a.r||a.hex||"?").trim(),
           col:gnd?"#8a98a6":(alt!=null&&alt<1500)?"#ff5c5c":"#3ddc97"}});
-      adsbOK=true;initMap();updateUser();renderMap(list);aT=Date.now();aErr="";aSrc=name+", "+(d.ac||d.aircraft||[]).length+" raw";
-      $("acsum").textContent=list.length?list.length+" aircraft seen":"No ADS-B seen (not the same as airspace clear)";
-      $("acsum").style.color=list.length?"":"var(--warn)";
-      return;
+      return {list,name,raw:rawN};
     }catch(e){errs.push(name+": "+(e.name==="AbortError"?"timeout":e.message))}
   }
-  aErr=errs.join(" | ");
-  $("acsum").textContent="ADS-B feed unavailable – do NOT assume airspace is clear";
-  $("near").className="near bad";$("near").textContent="ADS-B unavailable – aircraft alerts are NOT active.";lastLevel=0;setRing(-1);adsbOK=false;tbUpdate("bad","ADS-B unavailable – aircraft alerts are OFF",0);
-  $("acsum").style.color="var(--bad)";
+  throw new Error(errs.join(" | "));
+}
+function acSumText(){
+  const n=userList.length;
+  return (n?n+" aircraft within 5 nm of you":"No ADS-B seen within 5 nm of you (not the same as airspace clear)")+(extraList.length?" · "+extraList.length+" more in this map view":"");
+}
+async function adsb(){
+  try{
+    const r=await fetchAircraft(lat,lon,5);
+    adsbOK=true;initMap();updateUser();renderMap(r.list);aT=Date.now();aErr="";aSrc=r.name+", "+r.raw+" raw";
+    $("acsum").textContent=acSumText();
+    $("acsum").style.color=r.list.length?"":"var(--warn)";
+  }catch(e){
+    aErr=e.message;
+    $("acsum").textContent="ADS-B feed unavailable – do NOT assume airspace is clear";
+    $("near").className="near bad";$("near").textContent="ADS-B unavailable – aircraft alerts are NOT active.";lastLevel=0;setRing(-1);adsbOK=false;tbUpdate("bad","ADS-B unavailable – aircraft alerts are OFF",0);
+    $("acsum").style.color="var(--bad)";
+  }
+}
+async function adsbView(force){
+  if(!map||!have||viewBusy)return;
+  const c=map.getCenter(),away=dist(lat,lon,c.lat,c.lng);
+  if(away<3){viewKey="";if(extraList.length){extraList=[];renderMap(userList);$("acsum").textContent=acSumText()}return}
+  const b=map.getBounds(),span=dist(b.getSouth(),b.getWest(),b.getNorth(),b.getEast())/2,nm=Math.round(Math.min(25,Math.max(5,span)));
+  const key=c.lat.toFixed(2)+"|"+c.lng.toFixed(2)+"|"+nm;
+  if(!force&&key===viewKey&&Date.now()-viewAt<4500)return;
+  viewBusy=true;
+  try{
+    const r=await fetchAircraft(+c.lat.toFixed(4),+c.lng.toFixed(4),nm);
+    extraList=r.list;viewKey=key;viewAt=Date.now();renderMap(userList);$("acsum").textContent=acSumText();
+  }catch(e){extraList=[];renderMap(userList);$("acsum").textContent=acSumText()+" · aircraft for this map view unavailable"}
+  finally{viewBusy=false}
 }
 
 // Timer
@@ -744,7 +773,7 @@ wake();
   if(ok)$("intro").style.display="none";
   $("introbtn").onclick=()=>{try{localStorage.setItem("ack","1")}catch(e){}$("intro").style.display="none"};
 })();
-setInterval(()=>{if(have)weather()},300000);setInterval(()=>{if(have)adsb()},5000);
+setInterval(()=>{if(have)weather()},300000);setInterval(()=>{if(have)adsb()},5000);setInterval(()=>{if(have)adsbView(false)},5000);
 </script>
 </body>
 </html>
